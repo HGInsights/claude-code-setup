@@ -1,10 +1,10 @@
 # Automated Review Loops & External-Agent Safety
 
-Patterns hardened in hip-phoenix *after* the original [setup.md](setup.md) was written. Where `setup.md` sketches generic plan/code review loops, this is what the production version actually looks like once you run it against a real codebase for a few months: a primary external reviewer (Codex) with an automatic in-model fallback, a strict convergence contract, three distinct review passes, and the safety + token-cost guardrails you discover only after they bite you.
+Patterns hardened in the source monorepo *after* the original [setup.md](setup.md) was written. Where `setup.md` sketches generic plan/code review loops, this is what the production version actually looks like once you run it against a real codebase for a few months: a primary external reviewer (Codex) with an automatic in-model fallback, a strict convergence contract, three distinct review passes, and the safety + token-cost guardrails you discover only after they bite you.
 
 ## 1. Reviewer subagents: external-primary, in-model fallback
 
-The review loops in `setup.md` assume a single reviewer. In practice you want the *strongest available* reviewer with a guarantee the loop never silently stalls. The hip-phoenix `plan-reviewer` and `code-reviewer` subagents both follow the same shape:
+The review loops in `setup.md` assume a single reviewer. In practice you want the *strongest available* reviewer with a guarantee the loop never silently stalls. The `plan-reviewer` and `code-reviewer` subagents both follow the same shape:
 
 **Step 1 — try the external reviewer (Codex).** Pin the model explicitly; never inherit CLI defaults from `~/.codex/config.toml`, because a teammate's local config should not change what your review loop does:
 
@@ -42,11 +42,11 @@ The loop's stop condition is severity-gated, and the gating is **not re-litigate
 - `[minor] / [nit] / style` findings may be listed but never flip the gate on their own.
 - The parent agent does **not** re-classify or filter — any material finding from *either* reviewer (Codex or the Opus fallback) sets the gate. This is deliberate: it stops a wrapper from rationalizing away a real finding to escape the loop.
 
-Loop until `MATERIAL_FINDINGS: false` or a hard cap (10 rounds in hip-phoenix). Log every round — round number, reviewer, findings summary — in `context.md` so a resumed session knows where the loop stood.
+Loop until `MATERIAL_FINDINGS: false` or a hard cap (10 rounds in production). Log every round — round number, reviewer, findings summary — in `context.md` so a resumed session knows where the loop stood.
 
 ## 3. Three review passes, not one
 
-A single post-implementation review misses two whole classes of problem. hip-phoenix runs the loop at three points:
+A single post-implementation review misses two whole classes of problem. The production setup runs the loop at three points:
 
 | Pass | When | Scope argument | Catches |
 |------|------|----------------|---------|

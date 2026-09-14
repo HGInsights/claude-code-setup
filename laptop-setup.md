@@ -251,7 +251,7 @@ printf '%b\n' "${git_section}${SEP}${model_section}${SEP}${ctx_section}${SEP}${s
 
 The statusline shows *per-session* cost. It says nothing about how close you are to your **plan limits** — that's what [claude-meter](https://github.com/francisbrero/claude-meter) covers.
 
-AI Meter is a lightweight macOS menu bar app that shows AI usage limits at a glance, for both Claude and Codex.
+AI Meter is a lightweight macOS menu bar app that shows AI usage limits at a glance, for both Claude and Codex. It is a separate, independently maintained open-source project, not part of this repo — included here because it fills a real gap in the setup.
 
 **What it gives you:**
 - Session (5-hour) and weekly limits, per provider

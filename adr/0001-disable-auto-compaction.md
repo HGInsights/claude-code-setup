@@ -14,6 +14,13 @@ mechanism is that context is re-sent on every API call, so a session that reache
 800K pays for 800K of cache reads on every subsequent call regardless of how
 small the actual work is.
 
+> **On the figures below.** They were produced by an internal cost-audit tool
+> that reads local Claude Code transcripts. That tooling is not part of this
+> release — it is still changing shape and lives on the `wip/audit` branch — so
+> the numbers here are reported findings rather than something you can
+> reproduce from this repo today. The decision stands on the mechanism, which
+> does not depend on the tool: context is re-sent on every API call.
+
 The first response was to lower `autoCompactWindow` to 160000, well below the
 default (~95% of the context window). It worked on cost. Sessions that compacted
 ran at $0.090 per API call against $0.184 for those that did not, and they
@@ -112,8 +119,8 @@ accumulated reasoning.
 
 **Expected.** Cost rises. Compacted sessions ran at roughly half the per-call
 cost of uncompacted ones, and that difference is the price of this decision.
-The "Context carried above 200K" component of the audit grade will rise; that is
-the intended trade, not a regression.
+Any "context carried above 200K" metric will rise; that is the intended trade,
+not a regression.
 
 **Risk accepted.** There is no automatic backstop. A long session can now run to
 the context limit and stop rather than degrade. Based on 30 days, ~86% of
@@ -146,7 +153,7 @@ summarised. That is a separate change and is not made here.
 
 ## Revisiting
 
-Re-run the audit after a week of sessions. Compaction count should fall to near
+Re-measure after a week of sessions. Compaction count should fall to near
 zero. Watch whether any session hits the context limit, and whether cost rises
 more than the ~2x per-call difference predicts.
 

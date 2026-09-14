@@ -6,9 +6,26 @@ are symlinks to this file, so edit only this one.
 
 ## Repository Purpose
 
-Production-tested Claude Code configuration patterns, extracted from a large Next.js + TypeScript monorepo running these in production. This documents what's actually running, not theoretical ideas.
+The HG AI team's official AI SDLC: production-tested Claude Code configuration
+patterns, extracted from a large Next.js + TypeScript monorepo running these in
+production. This documents what's actually running, not theoretical ideas.
 
-This repo is **public**. Do not name the private source repo, its internal URLs, or its infrastructure specifics in files, commit messages, or PR descriptions. Generalize patterns rather than copying project-specific names.
+This repo is **public**. Do not name the private source repo, its internal URLs,
+or its infrastructure specifics in files, commit messages, or PR descriptions.
+Generalize patterns rather than copying project-specific names. When a concrete
+identifier is load-bearing to the lesson (a commit-status string, a workflow
+trigger), describe its *shape* rather than reproducing the real value.
+
+## Scope
+
+This repo is scoped to **harness customization** — configuring the coding agent
+itself: commands, skills, hooks, subagents, review loops, and the repo-level
+standards an agent must respect. That surface is stable.
+
+Monitoring and cost-audit tooling is **out of scope for the current release**.
+It lives on the `wip/audit` branch and is still changing shape. Do not
+reintroduce it at the repo root, and do not add a root-level `audit/`
+directory — `.gitignore` blocks it deliberately.
 
 ## Key Files
 
@@ -16,7 +33,10 @@ This repo is **public**. Do not name the private source repo, its internal URLs,
 - **review-loops.md** - Production-hardened review loops (external-primary/in-model-fallback reviewers, the `MATERIAL_FINDINGS` contract, three review passes, credential-stripping wrapper, subagent scope hygiene)
 - **sdlc-standards.md** - Repo-level engineering invariants an agent must respect (generated-file discipline, migration-as-deploy-gate, nightly→release gating, preview-env smoke tests, fail-fast env validation)
 - **laptop-setup.md** - One-time machine setup (worktrees, status line, usage monitoring, keyboard shortcuts)
+- **adr/** - Architecture decision records for non-obvious configuration choices
 - **README.md** - Public-facing description of the repository
+- **LICENSE** - MIT, Copyright (c) 2026 HG Insights
+- **CONTRIBUTING.md** - How to propose changes
 
 ## This Repo's Own Configuration
 
@@ -26,6 +46,7 @@ The repo eats its own dog food, scoped to what a docs-only project can use:
 CLAUDE.md              # single source of truth
 AGENTS.md -> CLAUDE.md # symlink (Codex CLI)
 GEMINI.md -> CLAUDE.md # symlink (Gemini CLI)
+adr/                   # architecture decision records
 .claude/
   settings.json        # permissions allow-list (committed)
   commands/create-pr.md

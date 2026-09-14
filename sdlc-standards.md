@@ -1,8 +1,8 @@
 # SDLC Standards Worth Porting to Any Repo
 
-These are repo-level engineering standards from hip-phoenix that change how *an agent* (and a human) should operate — guardrails Claude must respect, single-sources-of-truth it must not bypass, and CI gates it must understand before it touches deploy-adjacent code. They're not a generic DevOps cookbook; each one earns its place because ignoring it produces a class of mistake Claude will otherwise make confidently.
+These are repo-level engineering standards from the source monorepo that change how *an agent* (and a human) should operate — guardrails Claude must respect, single-sources-of-truth it must not bypass, and CI gates it must understand before it touches deploy-adjacent code. They're not a generic DevOps cookbook; each one earns its place because ignoring it produces a class of mistake Claude will otherwise make confidently.
 
-Everything here is verified against the live repo, not aspirational.
+Everything here is verified against a running production repo, not aspirational.
 
 ## 1. Generated files have one source of truth — never edit the output
 
@@ -19,23 +19,23 @@ This generalizes far beyond pricing: OpenAPI → client SDKs, protobuf → stubs
 
 ## 2. The DB migration *is* the deploy gate — understand it before touching schema
 
-hip-phoenix gates production promotion on migrations succeeding, via a deliberately simple mechanism (`.github/workflows/db-migrations.yml`):
+The source monorepo gates production promotion on migrations succeeding, via a deliberately simple mechanism (a `db-migrations` workflow):
 
-1. The workflow triggers on push to `master` filtered by path (`webapp/drizzle/**`, the schema dirs).
-2. Its first action posts a **`pending` GitHub commit status** with a fixed context string (`Vercel - phoenix: Apply DB Migrations`).
-3. Vercel's project is configured to wait on *that exact status string* before promoting the deploy.
-4. On success the status flips to `success` and Vercel promotes; on failure the deploy is blocked.
+1. The workflow triggers on push to `master` filtered by path (the migration/schema directories).
+2. Its first action posts a **`pending` GitHub commit status** with a fixed context string (e.g. `<Platform> - <project>: Apply DB Migrations`).
+3. The hosting platform's project is configured to wait on *that exact status string* before promoting the deploy.
+4. On success the status flips to `success` and the platform promotes; on failure the deploy is blocked.
 
 Two things Claude must internalize when working in a repo like this:
 
 - **The load-bearing identifier is the `context:` string, not the job name.** Renaming the workflow or job is safe; renaming the `context:` silently breaks the gate because the deploy platform is matching on the string. Any agent refactoring CI must treat that string as an API.
-- **Migration triggers can have coverage gaps.** In hip-phoenix the per-PR preview-DB workflow (`neon-pr-branches.yml`) only fires on PR `opened`/`reopened`/`closed` — **not** on subsequent pushes to an already-open PR. So a PR that adds a column in its *second* commit leaves the preview DB on the old schema. Recovery is close+reopen the PR (or run the migrate command manually against the preview DB). The general lesson: **when a migration mysteriously "didn't apply," check the workflow's trigger `types` before assuming the migration itself is broken.**
+- **Migration triggers can have coverage gaps.** In one production setup the per-PR preview-DB workflow only fires on PR `opened`/`reopened`/`closed` — **not** on subsequent pushes to an already-open PR. So a PR that adds a column in its *second* commit leaves the preview DB on the old schema. Recovery is close+reopen the PR (or run the migrate command manually against the preview DB). The general lesson: **when a migration mysteriously "didn't apply," check the workflow's trigger `types` before assuming the migration itself is broken.**
 
 **Transferable rule:** if schema changes gate deploys, document (a) the exact gate identifier, (b) the trigger paths/events and their gaps, and (c) the manual recovery command — and never use a "push schema directly" command (`db:push`-style) against any deployed environment; only versioned, auditable migrations.
 
 ## 3. Decouple validation from deployment — gate the release on a nightly, with an explicit, justified bypass
 
-hip-phoenix merges to `master` continuously but does **not** treat every merge as a production release. The production release workflow (`.github/workflows/release-production.yml`) first runs a `verify-nightly` job that queries the last *scheduled* nightly E2E/smoke run against staging and refuses to proceed unless it passed.
+The source monorepo merges to `master` continuously but does **not** treat every merge as a production release. The production release workflow first runs a `verify-nightly` job that queries the last *scheduled* nightly E2E/smoke run against staging and refuses to proceed unless it passed.
 
 Two design choices worth copying:
 
@@ -46,7 +46,7 @@ Two design choices worth copying:
 
 ## 4. Preview-env smoke tests for anything with an HTTP surface
 
-Unit and E2E tests don't catch routing, edge config, env-injection, or auth-redirect bugs that only appear in a real deployment. hip-phoenix's PR template requires a manual preview-env smoke for changes touching REST / MCP / OAuth / webhook surfaces — link the `curl` and its result, backed by an ADR (`webapp/specifications/ards/2026_04_PrEnvironmentTesting.md`).
+Unit and E2E tests don't catch routing, edge config, env-injection, or auth-redirect bugs that only appear in a real deployment. The source monorepo's PR template requires a manual preview-env smoke for changes touching REST / MCP / OAuth / webhook surfaces — link the `curl` and its result, backed by an ADR recording the decision.
 
 **Transferable rule:** for HTTP-facing changes, require evidence the surface actually works on a prod-class preview before review — not just that the unit tests pass. Bake the checklist into the PR template so it's not optional. (This pairs with the `/create-pr` + PR-template-enforcement pattern already in `setup.md` — the template is where you encode "what evidence does a reviewer need?")
 

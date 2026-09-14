@@ -1,6 +1,20 @@
-# Claude Code Best Practices
+# The HG AI Labs AI SDLC
 
-Production-tested Claude Code configuration patterns, extracted from a large Next.js + TypeScript monorepo running these in production. Everything here is in real use, not theoretical.
+The HG AI team's official AI software development lifecycle: production-tested
+Claude Code configuration patterns, extracted from a large Next.js + TypeScript
+monorepo running these in production. Everything here is in real use, not
+theoretical.
+
+## Scope
+
+This release covers **harness customization** — how you configure the coding
+agent itself: commands, skills, hooks, subagents, review loops, and the
+repo-level standards an agent must respect. That surface is stable and has been
+running in production for months.
+
+Monitoring and cost-audit tooling is deliberately **not** part of this release.
+It exists but is still changing shape; it lives on the `wip/audit` branch and
+will land once it stabilizes.
 
 ## What's in here
 
@@ -13,7 +27,6 @@ The main document. Covers everything you need to add Claude Code to a project:
 - **`/jira-to-github-issue`** — Jira ticket conversion
 - **Skills system** — Auto-activated docs, runbooks, and guardrails via keyword matching
 - **`/grill-me`** — Interrogate a design until every branch is resolved, before it becomes an issue
-- **Skills system** — Auto-activated docs, runbooks, and guardrails via keyword matching
 - **Hooks** — Across UserPromptSubmit, PostToolUse, and Stop events:
   - Skill activation, acceptance criteria validation, domain guardrails
   - Repeat error detection, preflight context loading
@@ -55,6 +68,16 @@ Run once per laptop:
 - Usage and plan-limit monitoring
 - Keyboard shortcuts reference
 
+### [adr/](adr/) — Architecture decision records
+
+Short records of configuration decisions that are non-obvious enough to be
+re-litigated later, and the evidence behind them. Currently:
+
+- **[0001](adr/0001-disable-auto-compaction.md)** — why auto-compaction is disabled outright rather than tuned
+
+Add one whenever a setting's rationale would otherwise live only in someone's
+memory.
+
 ## License
 
-MIT
+[MIT](LICENSE) — Copyright (c) 2026 HG Insights

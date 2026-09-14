@@ -2,13 +2,15 @@
 
 # Local Claude Code overrides — machine-specific, not shared
 .claude/settings.local.json
+
 # Generated audit reports — these contain real repo names, file paths, session
-# IDs and shell commands. This repo is public; never commit one.
+# IDs and shell commands. This repo is public; never commit one. The tooling
+# that produces them lives on the `wip/audit` branch, but a local run inside a
+# clone of this repo must still never leave a report behind.
 CC-AUDIT.md
 *-audit.json
 cc-audit-reports/
-audit/*.md
-!audit/README.md
+audit/
 
 __pycache__/
 *.pyc
