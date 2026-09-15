@@ -47,9 +47,8 @@ an individual is officially representing the community in public spaces.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the project maintainers by opening a confidential issue or
-contacting the maintainers directly. All complaints will be reviewed and
-investigated promptly and fairly.
+reported to the project maintainers at **phoenix@hginsights.com** (Francis
+Brero). All complaints will be reviewed and investigated promptly and fairly.
 
 Project maintainers are obligated to respect the privacy and security of the
 reporter of any incident.

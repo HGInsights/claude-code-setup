@@ -1,9 +1,11 @@
-# The HG AI Labs AI SDLC
+# The HG Insights AI SDLC
 
-The HG AI team's official AI software development lifecycle: production-tested
+HG Insights' official AI software development lifecycle: production-tested
 Claude Code configuration patterns, extracted from a large Next.js + TypeScript
 monorepo running these in production. Everything here is in real use, not
 theoretical.
+
+Maintained by the AI team at HG Insights.
 
 ## Scope
 

@@ -6,7 +6,7 @@ are symlinks to this file, so edit only this one.
 
 ## Repository Purpose
 
-The HG AI team's official AI SDLC: production-tested Claude Code configuration
+HG Insights' official AI SDLC: production-tested Claude Code configuration
 patterns, extracted from a large Next.js + TypeScript monorepo running these in
 production. This documents what's actually running, not theoretical ideas.
 
