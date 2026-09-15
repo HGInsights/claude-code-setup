@@ -14,12 +14,12 @@ mechanism is that context is re-sent on every API call, so a session that reache
 800K pays for 800K of cache reads on every subsequent call regardless of how
 small the actual work is.
 
-> **On the figures below.** They were produced by an internal cost-audit tool
-> that reads local Claude Code transcripts. That tooling is not part of this
-> release — it is still changing shape and lives on the `wip/audit` branch — so
-> the numbers here are reported findings rather than something you can
-> reproduce from this repo today. The decision stands on the mechanism, which
-> does not depend on the tool: context is re-sent on every API call.
+> **On the figures below.** They were produced by a cost-audit tool that reads
+> local Claude Code transcripts, now published as
+> [claude-code-audit](https://github.com/HGInsights/claude-code-audit) — so you
+> can run the same analysis against your own transcripts, though the figures
+> here are from this team's usage and yours will differ. The decision stands on
+> the mechanism regardless: context is re-sent on every API call.
 
 The first response was to lower `autoCompactWindow` to 160000, well below the
 default (~95% of the context window). It worked on cost. Sessions that compacted
