@@ -14,9 +14,10 @@ agent itself: commands, skills, hooks, subagents, review loops, and the
 repo-level standards an agent must respect. That surface is stable and has been
 running in production for months.
 
-Monitoring and cost-audit tooling is deliberately **not** part of this release.
-It exists but is still changing shape; it lives on the `wip/audit` branch and
-will land once it stabilizes.
+Cost-audit tooling lives in a separate repo,
+[claude-code-audit](https://github.com/HGInsights/claude-code-audit) — it reads your local transcripts and reports where
+the spend went and what to change. It is a Python CLI rather than
+documentation, which is why it is not here.
 
 ## What's in here
 

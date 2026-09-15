@@ -22,10 +22,11 @@ This repo is scoped to **harness customization** — configuring the coding agen
 itself: commands, skills, hooks, subagents, review loops, and the repo-level
 standards an agent must respect. That surface is stable.
 
-Monitoring and cost-audit tooling is **out of scope for the current release**.
-It lives on the `wip/audit` branch and is still changing shape. Do not
-reintroduce it at the repo root, and do not add a root-level `audit/`
-directory — `.gitignore` blocks it deliberately.
+Cost-audit tooling is **not in this repo**. It lives in its own repo,
+[claude-code-audit](https://github.com/HGInsights/claude-code-audit), because it is a Python CLI with a test suite and CI
+and this repo is docs-only. Do not reintroduce it at the repo root, and do not
+add a root-level `audit/` directory — `.gitignore` blocks it deliberately.
+Changes to the audit tool belong in that repo.
 
 ## Key Files
 
@@ -50,12 +51,17 @@ adr/                   # architecture decision records
 .claude/
   settings.json        # permissions allow-list (committed)
   commands/create-pr.md
+  hooks/codex-safe.sh  # credential-stripping wrapper (review-loops.md §4)
 ```
 
-Deliberately absent: skills, `skill-rules.json`, and the hook suite. There's no
-build, no test suite, and no dependencies here, so build-checkers and test gates
-would be dead weight. Don't add them just because setup.md documents them —
-setup.md describes what a *product* repo needs.
+Deliberately absent: skills, `skill-rules.json`, and the rest of the hook suite.
+There's no build, no test suite, and no dependencies here, so build-checkers and
+test gates would be dead weight. Don't add them just because setup.md documents
+them — setup.md describes what a *product* repo needs.
+
+`codex-safe.sh` is the exception, and it is here because `review-loops.md`
+documents it at this exact path. A script a reader is told to copy should be
+copyable, not retyped from a fenced block.
 
 If you add a new instruction file for another assistant, symlink it to
 `CLAUDE.md` rather than copying. Duplicated instruction files drift.
