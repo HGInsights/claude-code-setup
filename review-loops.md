@@ -60,25 +60,43 @@ Use `base <branch>` for the code pass, not `uncommitted`. `--base` produces the 
 
 ## 4. `codex-safe.sh`: strip secrets before invoking an external agent
 
-Any CLI agent you shell out to inherits your environment — including `DATABASE_URL`, `AUTH_SECRET`, API keys loaded from `.env`. An external reviewer does not need them, and you do not want them in that process's context, telemetry, or any prompt it might construct. Wrap the invocation in a script that unsets them:
+Any CLI agent you shell out to inherits your environment — including `DATABASE_URL`, `AUTH_SECRET`, API keys loaded from `.env`. An external reviewer does not need them, and you do not want them in that process's context, telemetry, or any prompt it might construct. Wrap the invocation in a script that unsets them.
+
+The working version is committed here as [`.claude/hooks/codex-safe.sh`](.claude/hooks/codex-safe.sh) — copy it rather than retyping it:
 
 ```bash
 #!/bin/bash
-# codex-safe.sh — strip credentials before invoking an external agent CLI
-set -e
-env \
-  -u DATABASE_URL \
-  -u TEST_DATABASE_URL \
-  -u AUTH_SECRET \
-  -u AUTH_GOOGLE_ID \
-  -u AUTH_GOOGLE_SECRET \
-  -u SENDGRID_API_KEY \
-  -u REDIS_URL \
-  -u OPENROUTER_API_KEY \
-  codex "$@"
+# codex-safe.sh — strip credentials before invoking an external agent CLI.
+#
+# A hardcoded unset-list silently rots as new secrets are added to your .env,
+# so this strips by NAME PATTERN first and then unsets the known-name
+# exceptions that don't match a pattern (e.g. DATABASE_URL).
+set -euo pipefail
+
+# Any var whose name looks credential-bearing.
+PATTERN='(SECRET|TOKEN|API_?KEY|PASSWORD|PASSWD|CREDENTIAL|PRIVATE_KEY|ACCESS_KEY|AUTH)'
+
+# Explicit names that carry secrets but don't match the pattern above.
+EXTRA=(
+  DATABASE_URL TEST_DATABASE_URL REDIS_URL
+  AUTH_GOOGLE_ID AWS_SESSION_TOKEN
+)
+
+unset_args=()
+while IFS='=' read -r name _; do
+  [[ "$name" =~ $PATTERN ]] && unset_args+=(-u "$name")
+done < <(env)
+
+for name in "${EXTRA[@]}"; do
+  unset_args+=(-u "$name")
+done
+
+exec env "${unset_args[@]}" codex "$@"
 ```
 
-Always route the external reviewer through this wrapper rather than calling `codex` directly. The list should mirror every secret-bearing key your `.env` actually defines — audit it whenever you add a new secret.
+Always route the external reviewer through this wrapper rather than calling `codex` directly.
+
+Matching on the name pattern is the load-bearing part. An explicit unset-list is the obvious first version, and it fails the same way every time: someone adds a secret to `.env`, nobody remembers this file exists, and it leaks. The pattern catches the next `*_API_KEY` without anyone updating the list. Keep `EXTRA` for the genuine exceptions — `DATABASE_URL` and `REDIS_URL` carry credentials in a URL and match nothing — and audit that short list instead of a long one.
 
 > **Aside — never paste a live secret into a prompt.** Selecting a `.env` line and dropping it into a Claude prompt sends it to the model and may be retained. If that happens, rotate the credential rather than hoping it wasn't logged. The whole reason `codex-safe.sh` exists is that secrets leak through the seams of agent tooling, not through the front door.
 
