@@ -1,0 +1,45 @@
+# Git aliases for an agent-heavy, worktree-heavy workflow.
+#
+# Install by appending to ~/.gitconfig, or keep it separate and reference it:
+#   git config --global include.path ~/path/to/gitconfig-aliases
+#
+# Every alias resolves the default branch from origin/HEAD rather than assuming
+# `master` or `main`. If origin/HEAD isn't set in a clone, fix it once with:
+#   git remote set-head origin --auto
+
+[alias]
+	co = checkout
+	cob = checkout -b
+	ec = config --global -e
+	up = !git pull --rebase --prune $@ && git submodule update --init --recursive
+
+	# Quick-save aliases. `save`/`wip` are checkpoints you expect to amend or
+	# squash later; `wipe` throws the work away but leaves it recoverable from
+	# the reflog, which plain `reset --hard` does not.
+	cm = !git add -A && git commit -m
+	save = !git add -A && git commit -m 'SAVEPOINT'
+	wip = !git add -u && git commit -m "WIP"
+	undo = reset HEAD~1 --mixed
+	amend = commit -a --amend
+	wipe = !git add -A && git commit -qm 'WIPE SAVEPOINT' && git reset HEAD~1 --hard
+
+	# Rebase onto the current remote default branch.
+	rbm = "!f() { D=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo master); git fetch origin && git rebase \"origin/$D\"; }; f"
+	rbmi = "!f() { D=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo master); git fetch origin && git rebase -i \"origin/$D\"; }; f"
+
+	# Delete local branches already merged into the default branch.
+	bclean = "!f() { DEFAULT=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo master); BRANCH=${1-$DEFAULT}; git branch --merged $BRANCH | grep -v $BRANCH$ | xargs git branch -d; }; f"
+
+	# bdone — finish a branch and sweep up.
+	#
+	# Worktree-aware, which is the point: running agents in parallel worktrees
+	# means ordinary branch cleanup tries to delete branches another worktree
+	# has checked out. Every deletion below skips branches held by a worktree.
+	#
+	# In a worktree: re-point this worktree's branch at the fresh remote default,
+	# refusing if the tree is dirty or the branch has unpushed commits.
+	# In the main checkout: switch to the default branch and pull.
+	# Then in both cases: prune stale worktrees, delete branches whose upstream
+	# is gone, delete branches merged into the default, and close out `pr-<N>`
+	# branches whose PR is MERGED or CLOSED (requires `gh`).
+	bdone = "!f() { DEFAULT=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo master); GITDIR=$(git rev-parse --git-dir); COMMONDIR=$(git rev-parse --git-common-dir); IN_WT=0; [ \"$GITDIR\" != \"$COMMONDIR\" ] && IN_WT=1; if [ \"$IN_WT\" = \"1\" ]; then BASE=${2-$DEFAULT}; git fetch origin \"$BASE\" || return 1; NEWBRANCH=${1-$(basename \"$(git rev-parse --show-toplevel)\")}; CURBRANCH=$(git symbolic-ref --short -q HEAD); if [ \"$NEWBRANCH\" != \"$CURBRANCH\" ] && git show-ref --verify --quiet \"refs/heads/$NEWBRANCH\"; then if [ -n \"$(git status --porcelain)\" ]; then echo \"bdone: working tree is dirty; refusing to recreate '$NEWBRANCH'.\" >&2; return 1; fi; AHEAD=$(git rev-list --count \"origin/$BASE..$NEWBRANCH\" 2>/dev/null || echo 1); if [ \"$AHEAD\" != \"0\" ]; then echo \"bdone: '$NEWBRANCH' has $AHEAD commit(s) not on origin/$BASE; refusing to recreate it.\" >&2; return 1; fi; git branch -D \"$NEWBRANCH\" || return 1; fi; git checkout -B \"$NEWBRANCH\" \"origin/$BASE\" || return 1; else BRANCH=${1-$DEFAULT}; git checkout \"$BRANCH\" && git up || return 1; fi; git worktree prune; WORKTREE_BRANCHES=$(git worktree list --porcelain | grep '^branch ' | sed 's@^branch refs/heads/@@'); git branch -vv | grep ': gone]' | sed 's/^[+* ]*//' | awk '{print $1}' | while read branch; do echo \"$WORKTREE_BRANCHES\" | grep -qx \"$branch\" && continue; git branch -D \"$branch\" 2>/dev/null; done; if git show-ref --verify --quiet \"refs/heads/$DEFAULT\"; then git branch --merged \"$DEFAULT\" | sed 's/^[+* ]*//' | while read branch; do [ \"$branch\" = \"$DEFAULT\" ] && continue; echo \"$WORKTREE_BRANCHES\" | grep -qx \"$branch\" && continue; git branch -d \"$branch\" 2>/dev/null; done; fi; git branch --list | sed 's/^[+* ]*//' | while read branch; do [ \"$branch\" = \"$DEFAULT\" ] && continue; echo \"$WORKTREE_BRANCHES\" | grep -qx \"$branch\" && continue; PR_NUM=$(echo \"$branch\" | grep -oE '^pr-[0-9]+' | grep -oE '[0-9]+'); if [ -n \"$PR_NUM\" ]; then STATE=$(gh pr view \"$PR_NUM\" --json state -q .state 2>/dev/null); if [ \"$STATE\" = \"MERGED\" ] || [ \"$STATE\" = \"CLOSED\" ]; then git branch -D \"$branch\"; fi; fi; done; }; f"
