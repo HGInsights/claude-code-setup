@@ -10,11 +10,19 @@ Patterns you have **run in production** and can describe concretely: what it
 does, why it exists, and what broke before you added it. The value of this repo
 is that nothing in it is speculative.
 
+Artifacts a reader copies — hooks, subagents, commands, shell helpers — belong
+in `templates/` or `laptop/` as **real files**, never as fenced blocks in a
+doc. Docs reference them by path and explain why. Shipped hooks are
+dependency-free POSIX shell that runs on stock macOS. See
+[ADR 0002](adr/0002-ship-copyable-artifacts.md).
+
 What doesn't belong:
 
 - Untested ideas, or "this should work" configuration
 - Monitoring and cost-audit tooling — out of scope for this release; see the
   Scope section in [CLAUDE.md](CLAUDE.md)
+- A root-level build, test suite, or dependency install. `templates/` is config
+  for *other* repos; it is not wired into this one's `.claude/` to exercise it.
 - Anything naming a private repository, internal URL, or infrastructure
   specific. Generalize the pattern instead; where a concrete identifier carries
   the lesson, describe its shape rather than the real value.
@@ -27,7 +35,10 @@ What doesn't belong:
    directory.
 3. **Keep instruction files in sync.** `AGENTS.md` and `GEMINI.md` are symlinks
    to `CLAUDE.md`. Edit `CLAUDE.md` only — never replace a symlink with a copy.
-4. **Say what you verified.** In the PR description, state what you actually
+4. **Extract from the live file.** Contributing an artifact you run elsewhere?
+   Copy the working version, not a fence that describes it — those drift, and
+   the drift is invisible.
+5. **Say what you verified.** In the PR description, state what you actually
    ran and observed, and what you did not.
 
 ## Reporting a problem
