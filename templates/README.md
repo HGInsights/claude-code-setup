@@ -13,7 +13,17 @@ these look the way they do; this directory is what you install.
 | `.claude/agents/code-reviewer.md` | Reviews a diff or PR. External reviewer CLI first, in-model fallback. |
 | `.claude/agents/plan-reviewer.md` | Same contract, for an implementation plan. |
 | `.claude/commands/fix-issue.md` | Issue → plan → review → implement → review → PR → CI gate. |
+| `.claude/commands/task-to-github-issue.md` | Tracker task → developer-ready GitHub issue, with two hard gates. |
+| `.claude/skills/runbooks/task-to-github-issue.md` | The runbook that command delegates to — where the substance lives. |
 | `.claude/hooks/codex-safe.sh` | Credential-stripping, timeout-bounded wrapper for the external reviewer. |
+
+`task-to-github-issue` is deliberately tracker-agnostic: only Step 1 is
+source-specific, written as an adapter with Jira as the worked example and
+Asana and Linear sketched alongside. A Slack thread or a pasted paragraph is a
+valid input too — the gap analysis matters more there, not less. The two
+outputs it guarantees (`### Story <N>:` headings and `**Story N:**`-prefixed
+acceptance criteria) are what `fix-issue` and `code-reviewer` parse, so the
+three files are designed to work together.
 
 ## Install
 
@@ -36,6 +46,10 @@ the ones it uses:
 | `{{IGNORE_PATHS}}` | Generated and vendored paths reviewers must not crawl |
 | `{{REVIEW_RUBRIC}}` / `{{REVIEW_CHECKLIST}}` | Your review criteria |
 | `{{REVIEWER_MODEL}}` | External reviewer model id |
+| `{{GH_REPO}}` | `owner/repo` for `gh` commands |
+| `{{TRACKER}}` | Jira, Asana, Linear, … |
+| `{{CODE_ROOT}}` / `{{DOCS_ROOT}}` | Where source and docs live |
+| `{{LABELS}}` | Your issue label taxonomy |
 
 ```sh
 grep -rn '{{' /path/to/your-repo/.claude/   # find what's left
