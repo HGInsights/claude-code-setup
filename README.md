@@ -19,7 +19,36 @@ Cost-audit tooling lives in a separate repo,
 the spend went and what to change. It is a Python CLI rather than
 documentation, which is why it is not here.
 
+## Quick start
+
+Seed a repo with the review loop and the issue workflow:
+
+```sh
+cp -R templates/.claude/. /path/to/your-repo/.claude/
+chmod +x /path/to/your-repo/.claude/hooks/codex-safe.sh
+grep -rn '{{' /path/to/your-repo/.claude/   # fill in the placeholders
+```
+
+Set up your machine (worktree helper, status line, git aliases):
+
+```sh
+cat laptop/README.md
+```
+
+Everything else here explains *why* those files look the way they do.
+
 ## What's in here
+
+### [templates/](templates/) — Copyable per-repo config
+
+Reviewer subagents, the `/fix-issue` workflow, and the credential-stripping
+wrapper, with `{{PLACEHOLDER}}` variables for the repo-specific parts. Not
+active in this repo — they're for yours.
+
+### [laptop/](laptop/) — Copyable machine setup
+
+The worktree helper, the status line script, and the git aliases, taken from
+the machine that runs them.
 
 ### [setup.md](setup.md) — Per-repo configuration
 
