@@ -66,8 +66,21 @@ laptop/                # SHIPPED: one-time machine setup
 .claude/               # RUNS HERE: this repo's own config
   settings.json        # permissions allow-list (committed)
   commands/create-pr.md
+  commands/task-to-github-issue.md
+  skills/runbooks/task-to-github-issue.md
   hooks/codex-safe.sh  # credential-stripping wrapper (review-loops.md §4)
 ```
+
+`task-to-github-issue` is seeded *from* `templates/` and then adapted — the
+copy here fills the placeholders, swaps the code-root references for this
+repo's docs and artifacts, and replaces "is the test pattern spelled out"
+with a verification question a repo without a test suite can answer. Improve
+the template and the copy in the same change when a lesson applies to both;
+they are not kept in sync automatically, and they should not be identical.
+
+Still deliberately absent: the reviewer subagents and `fix-issue`. They need a
+diff worth a second opinion, a test suite, and CI gates. Seeding them here to
+"dogfood" is the ships-vs-runs mistake.
 
 Root `create-pr.md` is deliberately a trimmed variant of the shipped template
 plus a public-repo disclosure checklist. That divergence is the ships-vs-runs
