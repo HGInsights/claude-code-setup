@@ -255,40 +255,20 @@ Steps:
 
 ### /grill-me (.claude/commands/grill-me.md)
 
-Interrogate a plan or design until every branch of the decision tree is resolved. This is the front half of `/fix-issue` — use it *before* filing an issue, when the thinking is still fuzzy.
+Interrogate a plan or design until every branch of the decision tree is resolved. This is the front half of `/fix-issue` — use it *before* filing an issue, when the thinking is still fuzzy. Copy [`templates/.claude/commands/grill-me.md`](templates/.claude/commands/grill-me.md).
 
-```markdown
-Interview me relentlessly about a plan, design, or idea until we reach
-shared understanding. Topic: $ARGUMENTS (ask if empty).
+It asks one question at a time, always with a recommended answer, after reading the code. Every question follows the operator-questions contract below, so technical questions go to a second model instead of the user, and every decision is written to disk as it is made.
 
-Step 1: Get a detailed description — the problem, solutions considered,
-        known constraints, what they're unsure about.
+### Operator questions (.claude/skills/runbooks/operator-questions.md)
 
-Step 2: Explore the codebase FIRST. Never ask the user something the code
-        already answers. Verify claims about current state, find existing
-        patterns, identify constraints they didn't mention.
-        Delegate broad exploration to an `Explore` subagent on Haiku.
+Every question the SDLC commands ask the user follows one contract, in [`templates/.claude/skills/runbooks/operator-questions.md`](templates/.claude/skills/runbooks/operator-questions.md):
 
-Step 3: Systematic interrogation. For each topic area:
-  - Ask ONE question at a time — never dump a batch
-  - Provide a recommended answer with each question
-  - Resolve dependencies first (nail down A before asking about B)
-  - Challenge assumptions; play devil's advocate even on reasonable answers
-  - Be specific: "How will you handle X?" beats "What about error handling?"
+- **`AskUserQuestion` only, never a plain-text question.** A background session that ends its turn on a plain-text question just stops, and no hook or notification sees it.
+- **Answerable on its own.** Questions are often read away from the transcript (a notification, a queue of questions from several sessions, a hook that gets only the tool input), so "item 4" or "the stories above" can't be answered. Artifacts go by absolute path, and the recommended option comes first.
+- **One tag per question decides who answers it.** `[product]` goes to the user; `[architecture]` goes to the user with a second model's opinion beside Claude's; `[technical]` is settled between Claude and the `decision-consult` agent ([`templates/.claude/agents/decision-consult.md`](templates/.claude/agents/decision-consult.md)) and reaches the user only if they still disagree after two exchanges.
+- **Assumed defaults.** A low-stakes, reversible product call with one clearly right answer is taken, recorded, and listed at the next sign-off instead of asked.
 
-  Cover: problem framing, solution alternatives and what was ruled out,
-  architecture fit and failure modes, explicit scope boundaries, edge cases
-  and rollback, validation and success metrics, sequencing and blockers.
-
-Step 4: Synthesize — shared understanding, decisions and rationale,
-        remaining risks, next steps. Offer to write it to
-        `dev/active/[topic]/plan.md`.
-
-Rules:
-- Always recommend; never just ask "What do you think?"
-- Read the code before asking
-- Know when to stop — consistent, specific, confident answers means done
-```
+With the contract in place, `/task-to-github-issue` asks one question per gap at Gate A and carries the stories and criteria verbatim in the Gate B question, and `/fix-issue` asks for plan approval only when a product or architecture decision is still open: Gate B writes a hash of the signed-off body into the issue, and `/fix-issue` skips the approval when that hash still verifies.
 
 **Why this pairs with `/fix-issue`:** `validate-acceptance-criteria.sh` scores an issue and warns when it's underspecified. `/grill-me` is how you fix that upstream, so the issue arrives already specified. Feeding a 5/5 issue into `/fix-issue` is dramatically cheaper than discovering the ambiguity mid-implementation.
 

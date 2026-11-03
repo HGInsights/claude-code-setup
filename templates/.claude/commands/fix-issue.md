@@ -12,6 +12,7 @@ TEMPLATE. Replace before use:
   {{TEST_CMD}}         test command
   {{REQUIRED_CHECKS}}  names of required CI checks
   {{GUIDELINES}}       repo convention docs to reference during implementation
+  {{GH_REPO}}          owner/repo for gh commands
 Drop steps that don't apply (a repo with no preview envs drops the smoke
 step). Keep Step 0b — compaction recovery is generic and load-bearing.
 -->
@@ -29,7 +30,7 @@ previous.
 4. **Create dev docs** — `activeForm: "Setting up dev docs"`
 5. **Research & plan** — `activeForm: "Researching and planning"`
 6. **Plan review** — `activeForm: "Running automated plan review"`
-7. **Get user approval on plan** — `activeForm: "Waiting for plan approval"`
+7. **Plan approval (only when needed)** — `activeForm: "Checking whether plan approval is needed"`
 8. **Implement changes** — `activeForm: "Implementing changes"`
 9. **Code review** — `activeForm: "Running automated code review"`
 10. **Run tests & checks** — `activeForm: "Running tests and checks"`
@@ -138,6 +139,12 @@ across repos, so locate yourself by phase *name* — "plan review",
 Ask about anything ambiguous *before* planning. A wrong assumption here costs
 a full plan-and-review cycle.
 
+Every question follows `.claude/skills/runbooks/operator-questions.md`:
+`AskUserQuestion` only, one tag, answerable on its own, one decision per
+question. Technical questions go to the `decision-consult` agent, not the
+user. Record every decision in `context.md` → `## Decisions` as soon as it is
+made.
+
 ### Step 3: Create the branch
 
 Branch from the fresh remote default: `<type>/issue-$ARGUMENTS-<slug>`.
@@ -171,11 +178,70 @@ what Step 0's resume detection reads.
      inline: every exploratory grep on the main session re-reads the full
      cached context at the main model's rates.
 3. Check `.claude/skills/` for relevant patterns.
-4. Write a phased plan to `plan.md`.
+4. Write a phased plan to `plan.md`. It ends with a `## Decisions` section:
+   one line per decision the plan makes, grouped under **product**,
+   **architecture** and **technical**. Technical lines carry their
+   `second reviewer: external|in-model` value; product and architecture lines
+   say `decided by: user`, or `decided by: default` for a product decision
+   taken as an assumed default (`operator-questions.md` → Assumed defaults).
+   Settle technical choices that come up while planning with
+   `decision-consult`. Ask each architecture decision found while planning as
+   its own `[architecture]` question (after its consult) before plan approval.
 5. Run the plan review loop (Step 6).
-6. Present the converged plan to the user.
+6. **Decide whether plan approval is needed.** It is **not** needed when all
+   of these hold, and then you skip the question entirely:
+   - the issue's Gate B marker verifies: its body ends with
+     `<!-- gate-b-signed-off: <sha> -->` (written by `/task-to-github-issue`
+     Step 7) and the body without that line still hashes to `<sha>`, so the
+     stories and criteria are exactly what the user signed off. Formatting
+     alone (`### Story N:` headings) proves nothing: a hand-written or
+     later-edited issue looks the same.
 
-**Wait for user approval before implementing.**
+     ```bash
+     # Strip CR first: a body saved from GitHub's web editor comes back CRLF,
+     # and the marker's `-->$` never matches before a trailing \r.
+     raw=$(gh issue view $ARGUMENTS --repo {{GH_REPO}} --json body --jq .body | tr -d '\r')
+     body=$(printf '%s\n' "$raw" | grep -v '^<!-- gate-b-signed-off: ')
+     recorded=$(printf '%s\n' "$raw" | sed -n 's/^<!-- gate-b-signed-off: \([0-9a-f]*\) -->$/\1/p')
+     [ -n "$recorded" ] && [ "$(printf '%s' "$body" | shasum -a 256 | cut -c1-12)" = "$recorded" ] \
+       && echo GATE_B_VERIFIED || echo GATE_B_NOT_VERIFIED
+     ```
+
+   - the plan adds no product decision beyond those criteria, other than
+     assumed defaults;
+   - every architecture decision the plan makes was already asked as its own
+     `[architecture]` question (item 4);
+   - no blocking plan-review finding is still open after the circuit breaker.
+
+   When skipped, record in `context.md`:
+   `Plan approval: skipped — Gate B marker verified, no open product or
+   architecture decisions`, list any assumed defaults there, and go straight
+   to Step 7. The plan's decision summary, with "Assumed defaults (change
+   any)", goes in the PR body: that is the user's sign-off point for this
+   run, and they change a default by commenting on the PR. (Once the product
+   decisions were settled at Gate B, reviewing the plan only cost the user a
+   context switch: in practice they approved every one unread.)
+
+   **When it is needed**, ask about exactly what is open, not the whole plan.
+   A new product decision gets its own `[product]` question. An issue without
+   signed-off stories, or a blocking finding left open, gets one `[product]`
+   plan-approval question whose text contains, in this order:
+   - the issue number and title, and one sentence on what the plan delivers;
+   - **the decision summary**: one line per decision from the plan's
+     `## Decisions`, with "Assumed defaults (change any)";
+   - **the plan-review outcome**: the number of rounds, each round's
+     reviewer, and the final `MATERIAL_FINDINGS` result. If every round was
+     `in-model`, say so in plain words: the external reviewer never saw this
+     plan;
+   - the **absolute path** to the plan
+     (`$(git rev-parse --show-toplevel)/{{DEV_DOCS_DIR}}/issue-$ARGUMENTS/plan.md`,
+     pasted as a literal);
+   - any blocking plan-review finding still open, or "none".
+
+   Never "approve the plan?" without these. Options: approve (first,
+   ` (Recommended)`), and request changes (the user types what to change).
+
+**When plan approval is needed, wait for it before implementing.**
 
 ### Step 6: Automated plan review
 
