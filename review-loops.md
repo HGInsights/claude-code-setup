@@ -38,11 +38,20 @@ The `REVIEWER:` line is mandatory in both paths so the parent agent (and you, re
 
 The loop's stop condition is severity-gated, and the gating is **not re-litigated** by the wrapper agent:
 
-- `MATERIAL_FINDINGS: true` iff at least one finding is `[critical] / [high] / [major]`.
-- `[minor] / [nit] / style` findings may be listed but never flip the gate on their own.
-- The parent agent does **not** re-classify or filter — any material finding from *either* reviewer (Codex or the Opus fallback) sets the gate. This is deliberate: it stops a wrapper from rationalizing away a real finding to escape the loop.
+- `MATERIAL_FINDINGS: true` iff at least one **in-scope** finding is `[critical]` or `[high]`.
+- `[major]` and `[minor]` findings are listed and **triaged** by the parent: fix, accept or defer, each with a one-line reason in `context.md`. They don't keep the loop going.
+- Two tags take a finding out of the gate. `[out-of-scope]`: the linked issue's acceptance criteria don't require it; it gets a follow-up issue only when it is likely in normal use. `[below-bar]`: it only matters beyond the repo's stated review bar (who and what the code must hold up against); it is accepted, never filed.
+- The parent agent does **not** re-classify — a `[critical]` or `[high]` in-scope finding from *either* reviewer sets the gate. This is deliberate: it stops a wrapper from rationalizing away a real finding to escape the loop.
 
-Loop until `MATERIAL_FINDINGS: false` or a hard cap (10 rounds in production). Log every round — round number, reviewer, findings summary — in `context.md` so a resumed session knows where the loop stood.
+Loop until `MATERIAL_FINDINGS: false` or a hard cap of **3 rounds**. Log every round — round number, reviewer, findings summary, triage — in `context.md` so a resumed session knows where the loop stood.
+
+**Why the gate moved.** It used to include `[major]`, with a 10-round cap. Loops then ran to the cap: one ran 10 plan rounds and 5 code rounds, and about six of its findings were real bugs; most of the rest were edge cases in fixes for earlier findings. Without a stated bar the reviewer applies the strictest one, and every pass finds the next layer down. Three rules keep the loop converging:
+
+- **Smallest fix, push back.** Fix the finding at every site with the same pattern, with a test that fails without it, and nothing more. Decline a finding that misreads the code or re-raises a settled decision, and record why.
+- **Same class twice, stop patching.** When a blocking finding is a variant of one fixed in an earlier round (another spelling, another input of the same kind), the check is trying to list an open-ended set. Ask the user an architecture question (narrow the feature, or accept the risk) instead of fixing the next variant.
+- **Later rounds verify, then review the delta.** From round 2 the reviewer gets the commit the last round saw and the previous round's outcome (fixed, declined, accepted). It confirms the fixes, reviews the changes since closely, and reopens code an earlier round passed only for `[critical]`/`[high]`. Re-reviewing everything reopened passed code, and the bug a fix introduced was the one most often missed. Keep one reviewer per loop: swapping models mid-loop reopens what the first one passed.
+
+When a finding can be settled by running something (a live run, a failure-injection test), run it instead of starting another round: those found real bugs as often as review rounds did.
 
 ## 3. Three review passes, not one
 

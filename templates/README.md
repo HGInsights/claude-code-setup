@@ -49,6 +49,7 @@ the ones it uses:
 | `{{GUIDELINES}}` | Repo convention docs a reviewer should read |
 | `{{IGNORE_PATHS}}` | Generated and vendored paths reviewers must not crawl |
 | `{{REVIEW_RUBRIC}}` / `{{REVIEW_CHECKLIST}}` | Your review criteria |
+| `{{REVIEW_BAR}}` | What the code must hold up against (who uses it, which failures count). Findings beyond it are tagged `[below-bar]` and never block |
 | `{{REVIEWER_MODEL}}` | External reviewer model id |
 | `{{GH_REPO}}` | `owner/repo` for `gh` commands |
 | `{{TRACKER}}` | Jira, Asana, Linear, … |
