@@ -13,6 +13,7 @@ TEMPLATE. Replace before use:
   {{GUIDELINES}}       repo convention docs to read in the fallback (Step 3)
   {{IGNORE_PATHS}}     generated/vendored paths (Scope hygiene)
   {{REVIEWER_MODEL}}   external reviewer model id
+  {{GH_REPO}}          owner/repo for gh commands
 Keep everything else. The commentary is the product — each warning below
 records a specific failure observed in production, and trimming one puts it
 back. See review-loops.md.
@@ -57,6 +58,14 @@ mkdir -p "$REVIEW_DIR"
 echo "REVIEW_DIR=$REVIEW_DIR"
 REVIEW_OUT="$REVIEW_DIR/output.md"
 REVIEW_ERR="$REVIEW_DIR/stderr.log"
+# The linked issue, inlined, so the plan is checked against the issue's real
+# acceptance criteria rather than the plan's own summary of them. The reviewer
+# never fetches its own input (see code-reviewer.md). N is in the plan path
+# ({{DEV_DOCS_DIR}}/issue-N/plan.md).
+gh issue view <N> --repo {{GH_REPO}} | sed 's/^/  /' > "$REVIEW_DIR/issue.md"
+# Fail loud: with no issue text the reviewer must say so, never report the
+# acceptance criteria as covered.
+[ -s "$REVIEW_DIR/issue.md" ] || printf '%s\n' "  ISSUE TEXT UNAVAILABLE: the linked issue could not be fetched. Say so in SUMMARY and report no acceptance criterion as covered." > "$REVIEW_DIR/issue.md"
 rm -f "$REVIEW_OUT"
 # Resolve the wrapper path. $CLAUDE_PROJECT_DIR is NOT always set in a subagent
 # shell — when unset the path became `/.claude/hooks/codex-safe.sh` and the call
@@ -71,14 +80,25 @@ CODEX_SAFE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hook
   "Review this implementation plan for the {{PROJECT}} codebase. Check for:
 {{REVIEW_CHECKLIST}}
 
+LINKED ISSUE:
+$(cat "$REVIEW_DIR/issue.md")
+
 PLAN CONTENT:
-<paste plan file content here>
+$(cat "<plan file path>")
 
 Respond with a structured review:
 - MATERIAL_FINDINGS: true/false
 - FINDINGS: numbered list with severity ([critical]/[high]/[major]/[minor])
 - SUMMARY: 1-2 sentences" 2>&1 | tee "$REVIEW_ERR"; echo "EXIT=${PIPESTATUS[0]:-$pipestatus[1]}"
 ```
+
+**Inline the plan with `$(cat "<plan file path>")`, never by pasting its text
+between the double quotes.** Pasted text is shell-expanded: a plan that quotes
+`$(git rev-parse …)`, `$?` or `${PIPESTATUS[0]}` reached the reviewer altered,
+or ran the command, so the review judged a different plan from the one on
+disk. The output of a command substitution is not expanded again, so `$(cat)`
+hands over the file's exact bytes. Observed on every round of one plan whose
+subject was shell scripting, until each round worked around it by hand.
 
 Capture the exit code from the `EXIT=` echo attached to the pipeline — **a bare
 `$?` returns `tee`'s status, not the wrapper's**, so it is always ~0 and the
@@ -188,7 +208,8 @@ output and skip to Step 4.
 
 Read these files in full:
 
-1. The plan file at the given path.
+1. The plan file at the given path, and the linked issue
+   (`gh issue view <N> --repo {{GH_REPO}}`; N is in the plan path).
 2. `CLAUDE.md` (architecture, commands, conventions).
 {{GUIDELINES}}
 
@@ -238,7 +259,7 @@ time without producing findings.
 {{IGNORE_PATHS}}
 
 **External path:** prepend this constraint to the prompt body before
-`PLAN CONTENT:` — "Do not read, grep, or enumerate the following directories:
+`LINKED ISSUE:` — "Do not read, grep, or enumerate the following directories:
 [list]. Cite single files when you need evidence; never crawl trees."
 
 **Fallback path:** use these as defaults for `Read`, `Bash grep`, `Glob`. Pass

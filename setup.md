@@ -188,21 +188,20 @@ tasks.md:
 
 ### /create-pr (.claude/commands/create-pr.md)
 
-Structured PR creation that respects the project's PR template:
+Structured PR creation that respects the project's PR template. Copy
+[`templates/.claude/commands/create-pr.md`](templates/.claude/commands/create-pr.md).
 
-```markdown
-Create a pull request for the current branch.
+The lessons it carries:
 
-Steps:
-1. Read `.github/pull_request_template.md` if it exists
-2. Run `git log main..HEAD --oneline` to get commit history
-3. Run `git diff main..HEAD --stat` to get changed files summary
-4. Fill in each section of the PR template using the git context
-5. Use `gh pr create --title "..." --body "..."` to create the PR
-
-IMPORTANT: `gh pr create --body` overrides GitHub's template auto-fill.
-You MUST read and reproduce the template manually in the --body argument.
-```
+- **`gh pr create --body` overrides GitHub's template auto-fill**, so the
+  command reads `.github/pull_request_template.md` and reproduces every
+  section. A blank section is not an answer; `None` or `N/A: <reason>` is.
+- **Compare against `origin/<base>` after a fetch, never a bare `<base>`.** In
+  a worktree the local base branch is often stale, and the PR body then
+  describes commits that already landed.
+- **Everything repo-specific lives in one `## Repo specifics` block** (title
+  convention, extra template sections, an after-PR step), so the numbered
+  sections can be kept identical across repos and changed together.
 
 ### /jira-to-github-issue (.claude/commands/jira-to-github-issue.md)
 

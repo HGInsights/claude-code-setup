@@ -298,7 +298,16 @@ Do not prescribe a raw reviewer invocation here; see
 `.claude/agents/code-reviewer.md` for the mechanics.
 
 Same parse, same circuit breaker, same `context.md` bookkeeping as Step 6 under
-a `## Code Review` heading.
+a `## Code Review` heading, plus the commit each round reviewed:
+
+```text
+Reviewed head: <git rev-parse HEAD when the round ran>
+```
+
+The head of the last clean review round (Step 8, later Step 11) is the
+**convergence SHA**. Step 11 and
+[Bringing a PR branch up to date](#bringing-a-pr-branch-up-to-date) decide
+from it whether a later review would see anything new.
 
 ### Step 9: Tests & checks
 
@@ -312,14 +321,84 @@ last read it.
 ### Step 11: Post-PR review
 
 Spawn `code-reviewer` with scope `pr <url>`. Same loop, recorded under
-`## Post-PR Review`.
+`## Post-PR Review`, with the head each round reviewed.
+
+**Skip it when nothing changed since the last code review.** If the pushed PR
+head is the Step 8 convergence SHA, and that last round's `REVIEWER:` was
+`external`, the post-PR pass would review identical bytes. Record
+`## Post-PR Review: skipped — PR head <sha> = last reviewed commit` instead.
+Run it when anything was committed after convergence, or when Step 8's last
+round was `in-model`: the PR then still gets an external pass.
 
 ### Step 12: CI green gate
 
-Wait for required checks ({{REQUIRED_CHECKS}}) to pass on the pushed commit.
-**A local green is not the finish line.** If a check fails, fix it and push
-again — do not report success with a red or pending check.
+1. **Mergeable first.**
+   `gh pr view <P> --repo {{GH_REPO}} --json mergeable,mergeStateStatus`. If it
+   reports `CONFLICTING`, `DIRTY` or `BEHIND`, follow
+   [Bringing a PR branch up to date](#bringing-a-pr-branch-up-to-date) before
+   waiting on CI. `UNKNOWN` means GitHub is still computing: wait 10 s and ask
+   again, at most 3 times.
+2. Wait for required checks ({{REQUIRED_CHECKS}}) to pass on the pushed commit.
+   **A local green is not the finish line.** If a check fails, fix it and push
+   again (a plain `git push`) — do not report success with a red or pending
+   check.
 
 ### Step 13: Archive dev docs
 
 Move `{{DEV_DOCS_DIR}}/issue-$ARGUMENTS/` to `{{DEV_DOCS_DONE}}/`.
+
+## Bringing a PR branch up to date
+
+Do it only when GitHub reports the PR `CONFLICTING`, `DIRTY` or `BEHIND`.
+**Rebase onto the base; never merge the base into the PR branch.** A repo that
+merges by rebase can't land a branch with a merge commit in it (GitHub reports
+it can't be rebased and refuses the merge), and in any repo a conflict
+resolved inside a merge commit is code no review round sees as a diff. Never
+open a new branch or PR to get around a conflict.
+
+1. `BASE=$(gh pr view <P> --repo {{GH_REPO}} --json baseRefName -q .baseRefName)`.
+   That is `{{DEFAULT_BRANCH}}` for a normal PR and the parent branch for a
+   stacked one; never hard-code `{{DEFAULT_BRANCH}}`, or a stacked child pulls
+   its parent's commits into its diff. When a parent PR is rebased, rebase its
+   children afterwards in stack order, each onto its own `baseRefName`:
+   - Before rebasing the parent, record its old head (`PARENT_OLD`, the
+     parent's `headRefOid`).
+   - On each child's own branch, run
+     `git rebase --onto "origin/$BASE" "$PARENT_OLD"`, not a plain rebase. The
+     child still carries the parent's old commits, and a plain rebase drops
+     them only when they are patch-identical to the rewritten ones; after a
+     parent rebase that resolved conflicts they would conflict again or show
+     up in the child's diff.
+   - **No trailing `HEAD`** on that command: it detaches HEAD and leaves the
+     local branch where it was.
+   - If someone else rebased the parent, recover `PARENT_OLD` with
+     `git merge-base --fork-point "origin/$BASE"`. If that prints nothing (a
+     fresh clone has no reflog of the old tip), stop and ask for the parent's
+     pre-rebase head. Never run the rebase with an empty `PARENT_OLD`.
+2. `OLD=$(gh pr view <P> --repo {{GH_REPO}} --json headRefOid -q .headRefOid)`,
+   and confirm `git rev-parse HEAD` equals `$OLD`. If it doesn't, the local
+   branch is missing remote commits: `git fetch origin <branch>`, then
+   `git rebase origin/<branch>` (or `git reset --hard origin/<branch>` when you
+   have no local-only commits). Never a plain `git pull`, which merges. Then
+   re-read `OLD` and confirm it is an ancestor of HEAD
+   (`git merge-base --is-ancestor "$OLD" HEAD`).
+3. `git fetch origin "$BASE" && git rebase "origin/$BASE"` (for a child of a
+   rewritten parent, the `--onto` form from item 1), resolve conflicts, then
+   run `{{CHECK_CMD}}` and `{{TEST_CMD}}`.
+4. `git push --force-with-lease=<branch>:$OLD origin HEAD:<branch>`, always to
+   the PR's own branch. **Name the lease explicitly**: a bare
+   `--force-with-lease` trusts the local remote-tracking ref, which any
+   background `git fetch` (an editor, another session) moves, and the lease
+   then protects nothing.
+5. If the push is rejected, someone else pushed. Don't retry and never fall
+   back to `--force`: fetch, look at what changed, and tell the user.
+6. **Re-review or not.** If the rebase needed conflict resolution, the post-PR
+   review (Step 11) runs again: the resolutions are new code. Record the new
+   head as the convergence SHA once it passes. After a clean rebase, skip the
+   review only when the convergence SHA equals `$OLD`, meaning nothing was
+   committed after the review converged; record the new HEAD as the
+   convergence SHA. If commits came after it (CI fixes, a teammate's push),
+   the review runs. **Never diff the old convergence SHA against the rebased
+   HEAD** to see what changed: that lists everything the base brought in too.
+
+Every other push (review fixes, CI fixes) is a plain `git push`.

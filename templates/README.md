@@ -14,6 +14,7 @@ these look the way they do; this directory is what you install.
 | `.claude/agents/plan-reviewer.md` | Same contract, for an implementation plan. |
 | `.claude/agents/decision-consult.md` | A second model's opinion on one technical or architecture decision, so the user isn't asked what two models can settle. |
 | `.claude/commands/fix-issue.md` | Issue → plan → review → implement → review → PR → CI gate. |
+| `.claude/commands/create-pr.md` | Branch → PR whose body reproduces the repo's PR template. Shared sections plus a `## Repo specifics` block. |
 | `.claude/commands/task-to-github-issue.md` | Tracker task → developer-ready GitHub issue, with two hard gates. |
 | `.claude/skills/runbooks/task-to-github-issue.md` | The runbook that command delegates to — where the substance lives. |
 | `.claude/commands/grill-me.md` | Interrogate a fuzzy idea, one question at a time, before it becomes an issue. |

@@ -56,7 +56,14 @@ A single post-implementation review misses two whole classes of problem. The pro
 
 The plan pass is the highest-leverage one and the easiest to skip. A material plan finding costs one paragraph to fix; the same flaw caught at code-review costs a rewrite.
 
-Use `base <branch>` for the code pass, not `uncommitted`. `--base` produces the same diff the PR will show, so the reviewer sees exactly what a human will. `uncommitted` drifts from the PR the moment you commit.
+Use `base <branch>` for the code pass, not `uncommitted`. `--base` produces the same diff the PR will show, so the reviewer sees exactly what a human will. `uncommitted` drifts from the PR the moment you commit. Diff against the fetched `origin/<branch>`, never a bare local branch: in a worktree the local base is often days stale, and the review then spends its findings on commits that already landed.
+
+**Skip a pass that would review identical bytes.** Record the commit each round reviewed. When the PR head is the commit the last clean *external* code-review round saw, the post-PR pass has nothing new to read; record the skip instead of running it. It still runs when anything was committed since, or when that last round was the in-model fallback, so the PR gets one external pass. After a rebase onto the base, re-review if conflicts were resolved (that is new code); after a clean rebase, skip only if nothing was committed after the review converged. See `templates/.claude/commands/fix-issue.md`, "Bringing a PR branch up to date".
+
+**Hand the reviewer its inputs verbatim.** Two ways the bytes it reads differ from the bytes on disk, both observed:
+
+- **Pasted text is shell-expanded.** A plan pasted between the double quotes of the prompt reached the reviewer with every `$(...)`, `$?` and `${...}` expanded, or ran the command. Inline files with `$(cat <path>)`; the output of a command substitution is not expanded again.
+- **"Find the linked issue yourself" is a fetch.** The reviewer must not fetch its own input (§1: a sandboxed fetch silently reviews the wrong target), and a prompt that told it to identify the issue from the branch name had it judge acceptance criteria it never saw. Fetch the issue with `gh` and inline it, indented so its column-0 text can't trip the CLI-error scan; if the fetch fails, inline a line saying so, so the review reports that it couldn't check the criteria instead of passing them.
 
 ## 4. `codex-safe.sh`: strip secrets before invoking an external agent
 

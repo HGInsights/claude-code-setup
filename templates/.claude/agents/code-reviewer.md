@@ -13,6 +13,7 @@ TEMPLATE. Replace before use:
   {{GUIDELINES}}       repo convention docs to read in the fallback (Step 3)
   {{IGNORE_PATHS}}     generated/vendored paths (Scope hygiene)
   {{REVIEWER_MODEL}}   external reviewer model id
+  {{GH_REPO}}          owner/repo for gh commands
 Keep everything else. Every warning below records a specific production
 failure; trimming one puts it back. See review-loops.md.
 -->
@@ -64,7 +65,12 @@ Branch-based review (preferred):
 
 ```bash
 # 1. Compute the real diff from THIS worktree via your own git, not the sandbox.
-BASE={{DEFAULT_BRANCH}}
+# Diff against the FETCHED remote base, never a bare local branch name. A local
+# base only moves when someone pulls it in the primary checkout, so in a
+# worktree it is often days stale (or absent): the diff then includes commits
+# that already landed, and the review spends its findings on someone else's code.
+git fetch origin {{DEFAULT_BRANCH}}
+BASE=origin/{{DEFAULT_BRANCH}}
 # Session-scoped paths — bare /tmp is SHARED across concurrent sessions. A
 # parallel run writes the SAME filenames, so a clobbered base.diff means
 # REVIEWING ANOTHER ISSUE'S DIFF while every anchoring gate still passes. This
@@ -76,6 +82,16 @@ mkdir -p "$REVIEW_DIR"
 echo "REVIEW_DIR=$REVIEW_DIR"
 git diff "$BASE"...HEAD > "$REVIEW_DIR/base.diff"
 git diff "$BASE"...HEAD --name-only > "$REVIEW_DIR/files.txt"
+# The linked issue, inlined, so User Story Verification checks the issue's real
+# acceptance criteria. The reviewer never fetches its own input (see above), and
+# "identify it from the branch name" asked it to. N comes from the branch name
+# (`<type>/issue-N-<slug>`) or a `Closes #N` in a commit message.
+# Indented two spaces: issue markdown sits at column 0, and the CLI echoes the
+# prompt into the log the column-0 error scan reads (Step 2).
+gh issue view <N> --repo {{GH_REPO}} | sed 's/^/  /' > "$REVIEW_DIR/issue.md"
+# Fail loud: with no issue text, story verification must say it couldn't run,
+# never report the criteria as met.
+[ -s "$REVIEW_DIR/issue.md" ] || printf '%s\n' "  ISSUE TEXT UNAVAILABLE: the linked issue could not be fetched. Say so in SUMMARY and report no acceptance criterion as verified." > "$REVIEW_DIR/issue.md"
 # 2. MANDATORY: clear the output file first, and read the REAL exit code.
 rm -f "$REVIEW_DIR/output.md"
 # $CLAUDE_PROJECT_DIR is NOT always set in a subagent shell — when unset the
@@ -87,7 +103,10 @@ CODEX_SAFE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hook
   -c model_reasoning_effort=high \
   -s read-only \
   -o "$REVIEW_DIR/output.md" \
-  "Review the following diff (changes on this branch vs $BASE; changed files listed in "$REVIEW_DIR/files.txt"). Apply the {{PROJECT}} review rubric, including User Story Verification against the linked issue — identify it from the branch name or commit messages. Diff:
+  "Review the following diff (changes on this branch vs $BASE; changed files listed in "$REVIEW_DIR/files.txt"). Apply the {{PROJECT}} review rubric, including User Story Verification against the linked issue (inlined below). Linked issue:
+$(cat "$REVIEW_DIR/issue.md")
+
+Diff:
 $(cat "$REVIEW_DIR/base.diff")" 2>&1 | tee "$REVIEW_DIR/stderr.log"; echo "EXIT=${PIPESTATUS[0]:-$pipestatus[1]}"
 ```
 
@@ -105,7 +124,9 @@ gh pr diff "$PR" > "$REVIEW_DIR/pr-${PR}.diff"
 gh pr view "$PR" --json baseRefName,headRefName,files,body > "$REVIEW_DIR/pr-${PR}.json"
 ```
 
-then inline `pr-${PR}.diff` the same way. Materializing the bytes removes the
+then inline `pr-${PR}.diff` the same way, with the linked issue fetched into
+`issue.md` as in the branch flow (N from `Closes #N` in the PR body, else the
+head branch name). Materializing the bytes removes the
 *delegated-fetch* wrong-target risk — but not all of it: the reviewer can still
 traverse the filesystem (`-s read-only` restricts writes, not reads), resume a
 stale session, or reason about another worktree, so the wrong-target check in
@@ -177,6 +198,10 @@ run on its own.
   Column-0 anchoring is what makes this safe: diff body lines begin with `+`,
   `-`, `@`, or a space, so a diff containing `ERROR: insufficient credits`
   cannot trigger it, while a real `ERROR: …` at the start of a line does.
+  **Anything else you inline must keep that property.** The linked issue is
+  markdown at column 0, so Step 1 indents it two spaces; inlined as-is, an
+  issue that quotes an `ERROR: … rate limit` line from a bug report would
+  declare the reviewer unavailable on a successful run.
 
   **Every alternative must stay anchored — including `command not found`.** The
   first version of this fix left that one unanchored, silently reintroducing
@@ -253,7 +278,7 @@ Step 4.
 
 ### Step 3 — In-model fallback review
 
-Read the diff you materialized, plus:
+Read the diff and the linked issue you materialized, plus:
 
 1. `CLAUDE.md` (architecture, commands, conventions).
 {{GUIDELINES}}
