@@ -14,3 +14,7 @@ audit/
 
 __pycache__/
 *.pyc
+
+# Dev docs: issue drafts and decisions written by /task-to-github-issue. Local
+# working files, never shipped.
+dev/

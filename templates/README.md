@@ -12,9 +12,12 @@ these look the way they do; this directory is what you install.
 |---|---|
 | `.claude/agents/code-reviewer.md` | Reviews a diff or PR. External reviewer CLI first, in-model fallback. |
 | `.claude/agents/plan-reviewer.md` | Same contract, for an implementation plan. |
+| `.claude/agents/decision-consult.md` | A second model's opinion on one technical or architecture decision, so the user isn't asked what two models can settle. |
 | `.claude/commands/fix-issue.md` | Issue → plan → review → implement → review → PR → CI gate. |
 | `.claude/commands/task-to-github-issue.md` | Tracker task → developer-ready GitHub issue, with two hard gates. |
 | `.claude/skills/runbooks/task-to-github-issue.md` | The runbook that command delegates to — where the substance lives. |
+| `.claude/commands/grill-me.md` | Interrogate a fuzzy idea, one question at a time, before it becomes an issue. |
+| `.claude/skills/runbooks/operator-questions.md` | The contract every question to the user follows: `AskUserQuestion` only, standalone, tagged, routed. |
 | `.claude/hooks/codex-safe.sh` | Credential-stripping, timeout-bounded wrapper for the external reviewer. |
 
 `task-to-github-issue` is deliberately tracker-agnostic: only Step 1 is
@@ -50,6 +53,7 @@ the ones it uses:
 | `{{TRACKER}}` | Jira, Asana, Linear, … |
 | `{{CODE_ROOT}}` / `{{DOCS_ROOT}}` | Where source and docs live |
 | `{{LABELS}}` | Your issue label taxonomy |
+| `{{ARCH_DOCS}}` | The docs that record your architecture decisions |
 
 ```sh
 grep -rn '{{' /path/to/your-repo/.claude/   # find what's left

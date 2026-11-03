@@ -11,6 +11,8 @@ TEMPLATE. Replace before use:
   {{CODE_ROOT}}    where source lives, e.g. "src/"
   {{DOCS_ROOT}}    where docs/ADRs live
   {{LABELS}}       your issue label taxonomy
+  {{DEV_DOCS_DIR}} where dev docs live (drafts and decisions go here)
+  {{ARCH_DOCS}}    the docs that record your architecture decisions
 Only Step 1 is tracker-specific — swap the adapter and the rest is unchanged.
 -->
 
@@ -33,6 +35,16 @@ steps, and do not create an issue before both hard gates pass.
 
 Neither gate is satisfiable by your own judgement. Both require the user to
 answer.
+
+### Asking the user
+
+Every question in this runbook follows
+[operator-questions.md](operator-questions.md): `AskUserQuestion` only, never
+a plain-text question; one tag (`[product]`, `[architecture]`, `[technical]`)
+at the start; answerable on its own, with absolute paths; one decision per
+question, recommended option first. Technical questions go to the
+`decision-consult` agent instead of the user, as that file's Routing section
+says.
 
 ## Step 1: Fetch the task — the tracker adapter
 
@@ -161,38 +173,82 @@ flow described step by step? Are multiple consumers affected?
 shapes, fields)? Are dependencies explicit (what must exist first)? Is the
 testing strategy clear (unit vs. integration)?
 
-Present the analysis with `AskUserQuestion`: what is well-defined, what gaps
-you found, and your suggested answers.
+For each gap, form a recommended answer, then tag it per
+[operator-questions.md](operator-questions.md) → Tags and route it:
+
+- **`[product]`** gaps (scope, edge-case behavior the user sees, success
+  criteria, personas, accepted risks) go to the user at Gate A, unless one
+  qualifies as an assumed default
+  ([operator-questions.md](operator-questions.md) → Assumed defaults): then
+  take the recommendation, record it, and list it at Gate B.
+- **`[architecture]`** gaps (a new component or dependency, a change to a
+  decision in {{ARCH_DOCS}}) go to `decision-consult` once, then to the user
+  at Gate A with both positions.
+- **`[technical]`** gaps (how to build it within the recorded design) go to
+  `decision-consult`. Settled ones are not asked. Only an unresolved
+  disagreement after 2 exchanges reaches the user.
+
+The split matters: a product owner answering Gate A should be asked about
+behavior, scope and risk, not about storage, cache keys or hook points they
+don't review. Asking them the technical gaps too is how a gate turns into a
+rubber stamp.
+
+Write every decision to `{{DEV_DOCS_DIR}}/<TASK-KEY>/decisions.md` (or
+`{{DEV_DOCS_DIR}}/<slug>/decisions.md` with no tracker key) **as soon as it is
+made**, before the next question or consult
+([operator-questions.md](operator-questions.md) → Recording decisions). A
+resumed session re-reads the file and doesn't ask again about anything in it.
+At Gate B the technical lines are copied into the draft's
+`## Technical Notes` → `### Decisions settled with the second reviewer`.
 
 ### 🔒 Gate A — grill until requirements are resolved
 
 Mandatory. You may **not** advance past Step 3 by silently filling gaps with
 your own assumptions.
 
-1. Present gaps as a numbered list, each with your recommended answer so the
-   user has something concrete to react to:
+1. **One `AskUserQuestion` question per gap**, up to 4 questions per call;
+   more gaps means more calls. Never a numbered list of gaps inside one
+   question: the user can't answer "accept 1 and 3, change 2" through options,
+   and a reader who sees only the question can't see the list. Each question
+   names the task (key and title), says what the gap is and why it matters for
+   the issue, and offers your recommended answer first with
+   ` (Recommended)`. Each option's `description` says what choosing it means
+   for the user or the product. For example:
 
+   ```text
+   question: "[product] Drafting the GitHub issue for ABC-31 ('Search
+     endpoint for accounts'): the task doesn't say what the endpoint returns
+     for an unknown account name. The acceptance criteria need one behavior.
+     What should a caller get?"
+   header: "Unknown name"
+   options:
+     - label: "200, empty list (Recommended)"
+       description: "Callers treat 'no match' like any other result; no
+         error handling needed. Typos look like 'nothing found'."
+     - label: "404 Not Found"
+       description: "Callers can tell 'no match' from an empty search, but
+         every client must handle the error."
    ```
-   Before I write the issue, I found gaps that need your call:
 
-   1. **Edge case not covered**: what does the endpoint return for an unknown
-      input? I'd suggest a 200 with an empty match rather than a 404.
-   2. **Success criteria vague**: "should be fast" — I'd propose p95 < 200ms.
-   3. **Missing dependency**: this seems to need <X> — is that available?
-   4. **Persona unclear**: who is the actor — an external consumer, or an
-      internal service?
-
-   For each: accept my recommendation, or give me the right answer.
-   ```
+   **Ask all of them together**, in as few calls as the 4-per-call limit
+   allows, and put the Step 4 structure question in this first round, not a
+   round of its own (unless the work is plainly one issue).
 
 2. **Loop, don't one-shot.** If an answer opens a new ambiguity or only
-   partially resolves a gap, ask the follow-up. Keep going until every
-   material gap is resolved or consciously accepted.
+   partially resolves a gap, ask the follow-up, again as its own standalone
+   question. Keep going until every material gap is resolved or consciously
+   accepted.
 
 3. Only then mark the gate complete.
 
-Even when the task looks well-defined, surface your read of the requirements
-and personas and get an explicit "yes, proceed." Do not skip the gate.
+**If no gap question reached the user** (you found no gaps, or every gap
+was settled as an assumed default or by the consult), still get an explicit
+"yes, proceed": ask one `[product]` question whose text restates your read of
+the requirements, the personas and the scope (in and out) in full, and lists
+the assumed defaults taken so far, with "Proceed with this reading
+(Recommended)" as the first option. Do not skip the gate. When gap questions did reach the
+user, don't add this confirmation: it only replays answers just given, and
+Gate B restates the scope anyway.
 
 ## Step 4: Decide issue structure
 
@@ -265,12 +321,64 @@ Blocks `gh issue create`. Before Step 6:
 2. Verify every criterion is testable and carries the `**Story N:**` prefix,
    and every story is covered by at least one criterion — no orphans in either
    direction.
-3. Show the user the drafted stories and criteria and ask for explicit
-   sign-off: *"Do these capture it? Anything to add, remove, or sharpen before
-   I create it?"*
-4. Wait for an explicit yes. If changes are requested, revise and re-confirm.
+3. **Write the full draft issue body to a file** before asking:
+   `{{DEV_DOCS_DIR}}/<TASK-KEY>/issue-draft.md`, or `{{DEV_DOCS_DIR}}/<slug>/issue-draft.md`
+   with no tracker key. When the work is split, one file per issue in
+   dependency order: `issue-draft.md`, `issue-draft-2.md`, … Resolve the
+   file's absolute path (`$(git rev-parse --show-toplevel)/…`) and use the
+   literal path in the question.
+4. Ask for sign-off with one `[product]` `AskUserQuestion` question per issue.
+   The question text contains the issue title and, **verbatim from the draft
+   file**:
+   - every `### Story N:` heading with its story text;
+   - every acceptance criterion with its `**Story N:**` prefix;
+   - the draft file's absolute path, for the full body;
+   - every architecture decision with a consequence the user will notice,
+     one line each, or "none";
+   - **"Assumed defaults (change any)"**: every product decision taken as a
+     default, one line each, or "none".
 
-If the work is split across multiple issues, **each** must clear this gate.
+   It never says "these stories" or "the draft" without them: the reader may
+   see nothing but the question. Options: approve as drafted (first,
+   ` (Recommended)`), and request changes (the user types what to change).
+   For example:
+
+   ```text
+   question: "[product] Sign-off for the GitHub issue drafted from ABC-31,
+     'Search endpoint for accounts'. Full draft:
+     /work/repo/{{DEV_DOCS_DIR}}/ABC-31/issue-draft.md
+
+     ### Story 1: Find an account by name
+     As a support agent, I type part of an account name and see matching
+     accounts within a second, so I can open the right one.
+     ### Story 2: No match
+     As a support agent, when nothing matches I see an empty result, not an
+     error.
+
+     - [ ] **Story 1:** GET /accounts?name=acm returns accounts whose name
+       contains 'acm', case-insensitive, p95 < 200ms on the test dataset.
+     - [ ] **Story 2:** an unknown name returns 200 with an empty list.
+
+     Assumed defaults (change any): result order is by name, A to Z.
+
+     Do these stories and criteria capture it?"
+   header: "Sign-off"
+   options:
+     - label: "Approve as drafted (Recommended)"
+       description: "The issue is created with exactly these stories and
+         criteria; /fix-issue builds and verifies against them."
+     - label: "Request changes"
+       description: "Nothing is created yet. Type what to add, remove or
+         sharpen; I revise the draft file and ask again."
+   ```
+
+5. Wait for an explicit yes. If changes are requested, revise the draft file
+   and re-confirm with a new question that again carries the full stories and
+   criteria. If the user changed an assumed default, update its line in
+   `decisions.md` to the new choice and `decided by: user` first.
+
+If the work is split across multiple issues, **each** must clear this gate,
+with its own question.
 
 ### Quality checklist — apply to every issue before creating
 
@@ -299,13 +407,20 @@ If the work is split across multiple issues, **each** must clear this gate.
 
 ## Step 7: Create the issue(s)
 
+Create from the draft file Gate B signed off, so the issue says exactly what
+the user approved. If you changed anything after sign-off, Gate B wasn't
+passed for that text: ask again.
+
 ```bash
+# Gate B marker: a hash of exactly the body the user signed off. /fix-issue
+# checks it before skipping plan approval, so a hand-written or later-edited
+# issue can't pass as signed off.
+body=$(tr -d '\r' < "<absolute path to the signed-off issue-draft.md>")
+sha=$(printf '%s' "$body" | shasum -a 256 | cut -c1-12)
+printf '%s\n\n<!-- gate-b-signed-off: %s -->\n' "$body" "$sha" > "<draft dir>/issue-body.md"
 gh issue create --repo {{GH_REPO}} \
   --title "<title>" \
-  --body-file <(cat <<'BODY'
-<issue body>
-BODY
-) \
+  --body-file "<draft dir>/issue-body.md" \
   --label "<labels>"
 ```
 
