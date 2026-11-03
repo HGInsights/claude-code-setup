@@ -70,6 +70,7 @@ CODEX_SAFE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hook
   -o "$REVIEW_OUT" \
   "Review this implementation plan for the {{PROJECT}} codebase. Check for:
 {{REVIEW_CHECKLIST}}
+- The plan's '## Gates & tests' section against the files it will touch: a missing section, a story with no test, a new test not registered where the gates require it, or a planned limit breach with no split is [high].
 
 PLAN CONTENT:
 <paste plan file content here>

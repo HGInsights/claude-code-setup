@@ -256,6 +256,16 @@ Gate B restates the scope anyway.
 and separable into independent, shippable increments — then identify
 boundaries, dependencies (what must come first), labels, and sizes.
 
+For several issues, also work out the **run plan**: which issues can be built
+at the same time and which must wait. Issue B is *blocked by* A only if B
+can't be built or tested until A is merged. An overlap that only affects one
+criterion, or a shared file that just means a rebase, is a *soft* dependency
+and doesn't block. Group the issues into waves: wave 1 is every issue blocked
+by nothing; wave 2 is every issue blocked only by wave-1 issues; and so on.
+Issues in the same wave can run in parallel, each `/fix-issue` in its own
+worktree. (Without this, a split into three issues ran only the first: nobody
+had written down which of the others could start.)
+
 Recommend, and get confirmation before creating.
 
 ## Step 5: Write the issue(s)
@@ -274,6 +284,14 @@ change), the issue is incomplete.
 `## Context` · `## Problem` · `## Fix — exact changes required` (bugs) ·
 `## Requirements` · `## User Stories` · `## Acceptance Criteria` ·
 `## Technical Notes` · `## Dependencies` · `## Size: [Small/Medium/Large]`
+
+`## Dependencies` starts with exactly one machine-readable line,
+`Blocked by: #<N>, #<M>` or `Blocked by: none`, listing only the issues that
+must be merged before this one can start (in drafts, write a placeholder such
+as `#<issue-draft.md>` and swap in the number at creation; that mechanical
+swap isn't a change to what was signed off). Soft relationships go on the
+lines below as `- Soft: #<N> (why)`. `/fix-issue` reads that line before it
+starts and refuses to build on an issue that hasn't merged.
 
 ### User stories — end-user altitude, NOT restated unit tests
 
@@ -431,7 +449,9 @@ referenced by number in later ones.
 
 Comment the GitHub issue URL(s) back on the source task where the tracker
 supports it, then summarize for the user: issue number(s), title(s), labels,
-size, and the dependency order.
+size, and the **run plan**: each wave with its issues, which run in parallel,
+and what each later wave waits for. Put the run plan in the tracker comment
+too, and end with one `/fix-issue <N>` line per wave-1 issue, ready to start.
 
 ## Error handling
 
