@@ -9,7 +9,10 @@ color: yellow
 TEMPLATE. Replace before use:
   {{PROJECT}}          human name of the codebase
   {{DEFAULT_BRANCH}}   e.g. main
-  {{REVIEW_RUBRIC}}    your numbered review rubric (or a path to it)
+  {{REVIEW_RUBRIC}}    your review rubric, inlined into the prompt as one paragraph:
+                       "(1) ... (2) ...". Not a path: the external reviewer
+                       never reads files you don't hand it. No double quotes,
+                       backticks or $: it sits inside the quoted prompt.
   {{GUIDELINES}}       repo convention docs to read in the fallback (Step 3)
   {{IGNORE_PATHS}}     generated/vendored paths (Scope hygiene)
   {{REVIEWER_MODEL}}   external reviewer model id
@@ -120,7 +123,7 @@ CODEX_SAFE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hook
   -c model_reasoning_effort=high \
   -s read-only \
   -o "$REVIEW_DIR/output.md" \
-  "Review the following diff (changes on this branch vs $BASE; changed files listed in "$REVIEW_DIR/files.txt"). Apply the {{PROJECT}} review rubric, including User Story Verification against the linked issue (inlined below). Severity: [critical] security flaw, data loss, or a broken guarantee; [high] significant correctness bug or missing acceptance criterion; [major] a real gap or unhandled edge case that needs a small patch; [minor] polish, naming, wording. Tag a finding about behavior the issue's acceptance criteria don't require as [out-of-scope] after its severity. Review bar: {{REVIEW_BAR}} Tag a finding that only matters beyond that bar as [below-bar] after its severity. If two of your findings are variants of one problem, say so in SUMMARY. Items in SETTLED are not findings unless critical. If CHANGES SINCE THE LAST ROUND is not 'none': first confirm each finding of the previous round (listed in SETTLED) is fixed, then review those changes closely, including fixes that break a sibling case; on code outside them, report only critical or high findings. MATERIAL_FINDINGS is true only if an in-scope finding that is not [below-bar] is [critical] or [high].
+  "Review the following diff (changes on this branch vs $BASE; changed files listed in "$REVIEW_DIR/files.txt"). Apply this review rubric, including User Story Verification against the linked issue (inlined below): {{REVIEW_RUBRIC}} Severity: [critical] security flaw, data loss, or a broken guarantee; [high] significant correctness bug or missing acceptance criterion; [major] a real gap or unhandled edge case that needs a small patch; [minor] polish, naming, wording. Tag a finding about behavior the issue's acceptance criteria don't require as [out-of-scope] after its severity. Review bar: {{REVIEW_BAR}} Tag a finding that only matters beyond that bar as [below-bar] after its severity. If two of your findings are variants of one problem, say so in SUMMARY. Items in SETTLED are not findings unless critical. If CHANGES SINCE THE LAST ROUND is not 'none': first confirm each finding of the previous round (listed in SETTLED) is fixed, then review those changes closely, including fixes that break a sibling case; on code outside them, report only critical or high findings. MATERIAL_FINDINGS is true only if an in-scope finding that is not [below-bar] is [critical] or [high].
 
 Linked issue:
 $(cat "$REVIEW_DIR/issue.md")
