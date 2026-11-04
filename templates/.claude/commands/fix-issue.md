@@ -48,11 +48,44 @@ previous.
 
 ### Step 0: Check for an existing session
 
+**First, check that nothing blocks it**, on every start, fresh or resumed (a
+blocker can be reopened after a session began). Read the issue's
+`Blocked by:` line in `## Dependencies` (`/task-to-github-issue` writes it;
+`Soft:` lines never block). For each listed issue, read
+`gh issue view <M> --repo {{GH_REPO}} --json state,stateReason`. A blocker is
+cleared only when it is `CLOSED` with `stateReason` `COMPLETED`: closed as not
+planned or duplicate means the work never landed. **Fail closed:** if the body
+or any blocker can't be read (a `gh` error, a rate limit, unparseable output),
+treat that as blocked. Either way, stop: don't branch, plan or ask anything.
+Report "#$ARGUMENTS is blocked by #<M> (open)" or "#$ARGUMENTS: couldn't
+confirm blocker #<M>", and end. Starting anyway builds on code that doesn't
+exist yet.
+
+**Then move into the issue's own worktree, before anything is written.**
+Everything this command writes (decisions, dev docs, branch, code) lives in
+`.claude/worktrees/issue-$ARGUMENTS-<slug>`, never in the checkout the session
+started from: several `/fix-issue` sessions can start from one checkout in
+parallel, and a branch switch or a stray file there affects all of them. Use
+Claude Code's `EnterWorktree` tool, on branch
+`<type>/issue-$ARGUMENTS-<slug>` from the fresh remote default if the worktree
+doesn't exist yet. The tool moves the session's working directory, so the
+subagents (plan-reviewer, code-reviewer, Explore) run there too. **Don't**
+create it with a plain `git worktree add` and keep working from the launch
+checkout: the reviewers would then diff the shared checkout, the
+wrong-worktree failure `code-reviewer.md` warns about. On resume, if
+`git rev-parse --show-toplevel` is already that worktree, stay; otherwise
+re-enter it. Then look for the dev docs inside it:
+
 ```bash
 ls {{DEV_DOCS_DIR}}/issue-$ARGUMENTS/ 2>/dev/null
 ```
 
-**If the directory exists**, this is a resumed session:
+**If the directory exists but has no `tasks.md`**, the last session stopped
+in Step 2, after recording some decisions and before Step 4 created the dev
+docs. Start at Step 1, keep `context.md` → `## Decisions` as it is, and don't
+ask again about anything already in it.
+
+**If the directory exists and has `tasks.md`**, this is a resumed session:
 
 1. Read `tasks.md` for current status
 2. Read `context.md` for last recorded state
@@ -148,7 +181,9 @@ made.
 
 ### Step 3: Create the branch
 
-Branch from the fresh remote default: `<type>/issue-$ARGUMENTS-<slug>`.
+Step 0 created it with the worktree: `<type>/issue-$ARGUMENTS-<slug>`, from
+the fresh remote default. Nothing to do here unless Step 0 found an existing
+worktree on another branch; then stop and ask.
 
 ### Step 4: Create dev docs
 
@@ -188,6 +223,24 @@ what Step 0's resume detection reads.
    Settle technical choices that come up while planning with
    `decision-consult`. Ask each architecture decision found while planning as
    its own `[architecture]` question (after its consult) before plan approval.
+
+   The plan also has a **`## Gates & tests`** section, never omitted (a plan
+   without it is not ready for review):
+   - **Tests per story**: each story or criterion → test tier, test file and
+     what the test asserts, or `manual: <steps> — <why>`. A bug fix names its
+     regression test.
+   - **Gates expected**: the checks this diff will trigger, from
+     `{{CHECK_CMD}}` to the required CI checks ({{REQUIRED_CHECKS}}): coverage
+     thresholds, manifests a new test must be registered in, generated files.
+   - **Quality-ratchet risks**: any limit the change is likely to cross (file
+     or function size, complexity, duplication) and the planned split.
+   - **Docs to update**, or `N/A: <reason>`.
+
+   Plan gaps were the largest single source of code-review findings, and most
+   plan reviews hit the round cap with gate failures still open: a test tier
+   nobody chose, a spec nobody registered, a size limit crossed on purpose.
+   Naming them up front moves those findings to the plan, where they cost a
+   line.
 5. Run the plan review loop (Step 6).
 6. **Decide whether plan approval is needed.** It is **not** needed when all
    of these hold, and then you skip the question entirely:

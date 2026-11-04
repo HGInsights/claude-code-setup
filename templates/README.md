@@ -20,6 +20,7 @@ these look the way they do; this directory is what you install.
 | `.claude/commands/grill-me.md` | Interrogate a fuzzy idea, one question at a time, before it becomes an issue. |
 | `.claude/skills/runbooks/operator-questions.md` | The contract every question to the user follows: `AskUserQuestion` only, standalone, tagged, routed. |
 | `.claude/hooks/codex-safe.sh` | Credential-stripping, timeout-bounded wrapper for the external reviewer. |
+| `.claude/commands/release.md` | Pinned target → what ships → gate → cut → deploy → verify what serves → honest report. A skeleton: your gate, deploy and serving checks go in placeholders. |
 
 `task-to-github-issue` is deliberately tracker-agnostic: only Step 1 is
 source-specific, written as an adapter with Jira as the worked example and
@@ -56,6 +57,8 @@ the ones it uses:
 | `{{CODE_ROOT}}` / `{{DOCS_ROOT}}` | Where source and docs live |
 | `{{LABELS}}` | Your issue label taxonomy |
 | `{{ARCH_DOCS}}` | The docs that record your architecture decisions |
+| `{{MIGRATIONS_PATH}}` / `{{RISKY_PATTERN}}` | `release.md`: where migrations live, and a `grep -E` for high-blast-radius commits |
+| `{{RELEASE_GATE}}` / `{{DEPLOY_STEPS}}` / `{{SERVING_CHECK}}` / `{{ROLLBACK}}` | `release.md`: your pre-release gate, the deploy steps a release doesn't do, how to prove which version serves, how to roll back |
 
 ```sh
 grep -rn '{{' /path/to/your-repo/.claude/   # find what's left

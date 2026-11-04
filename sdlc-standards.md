@@ -44,6 +44,8 @@ Two design choices worth copying:
 
 **Transferable rule:** separate "is the code healthy?" (scheduled, comprehensive) from "ship it" (on-demand, gated on the latest health signal). Give the gate a bypass that demands a reason and records it.
 
+**Key the gate on the SHA, not on freshness.** A green nightly from an hour ago fails the gate correctly if the branch moved one commit since; a gate that only checks "the last run passed" ships untested code. [`templates/.claude/commands/release.md`](templates/.claude/commands/release.md) is a release command built around this and the other ways releases half-finish: an unpinned target, a cut in the middle of an epic, "released" mistaken for "deployed", and "it returns 200" mistaken for "the new version serves".
+
 ## 4. Preview-env smoke tests for anything with an HTTP surface
 
 Unit and E2E tests don't catch routing, edge config, env-injection, or auth-redirect bugs that only appear in a real deployment. The source monorepo's PR template requires a manual preview-env smoke for changes touching REST / MCP / OAuth / webhook surfaces — link the `curl` and its result, backed by an ADR recording the decision.

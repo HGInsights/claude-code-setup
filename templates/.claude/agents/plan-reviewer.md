@@ -89,6 +89,7 @@ CODEX_SAFE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hook
   -o "$REVIEW_OUT" \
   "Review this implementation plan for the {{PROJECT}} codebase. Check for:
 {{REVIEW_CHECKLIST}}
+- The plan's '## Gates & tests' section against the files it will touch: a missing section, a story with no test, a new test not registered where the gates require it, or a planned limit breach with no split is [high].
 
 Severity: [critical] security flaw, data loss, or a broken guarantee; [high] significant correctness bug or missing acceptance criterion; [major] a real gap or unhandled edge case that needs a small patch; [minor] polish, naming, wording. Tag a finding about behavior the issue's acceptance criteria don't require as [out-of-scope] after its severity. Review bar: {{REVIEW_BAR}} Tag a finding that only matters beyond that bar as [below-bar] after its severity. If two of your findings are variants of one problem, say so in SUMMARY. Items in SETTLED are not findings unless critical. If SETTLED lists a previous round: first confirm each of its findings is addressed in the plan; reopen what an earlier round passed only for critical or high findings. MATERIAL_FINDINGS is true only if an in-scope finding that is not [below-bar] is [critical] or [high].
 
