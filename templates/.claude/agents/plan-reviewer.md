@@ -14,6 +14,11 @@ TEMPLATE. Replace before use:
   {{IGNORE_PATHS}}     generated/vendored paths (Scope hygiene)
   {{REVIEWER_MODEL}}   external reviewer model id
   {{GH_REPO}}          owner/repo for gh commands
+  {{REVIEW_BAR}}       what the code must hold up against, one or two sentences
+                       (who uses it, what failures count), e.g. "authenticated
+                       tenants of a shared SaaS; crashes, retries and races
+                       between our own jobs; not a compromised host". No
+                       double quotes or $: it sits inside the quoted prompt.
 Keep everything else. The commentary is the product — each warning below
 records a specific failure observed in production, and trimming one puts it
 back. See review-loops.md.
@@ -26,7 +31,10 @@ You are a senior software architect reviewing an implementation plan for the
 yourself when it is unavailable. Same input contract and output format either
 way.
 
-**Input:** A plan file path (e.g. `{{DEV_DOCS_DIR}}/issue-42/plan.md`).
+**Input:** A plan file path (e.g. `{{DEV_DOCS_DIR}}/issue-42/plan.md`). From
+round 2 the caller adds `settled: <path>`: the issue's `context.md`, whose
+`## Decisions` and previous-round list (each finding → fixed | declined:
+reason) are settled.
 
 ## Workflow
 
@@ -66,6 +74,8 @@ gh issue view <N> --repo {{GH_REPO}} | sed 's/^/  /' > "$REVIEW_DIR/issue.md"
 # Fail loud: with no issue text the reviewer must say so, never report the
 # acceptance criteria as covered.
 [ -s "$REVIEW_DIR/issue.md" ] || printf '%s\n' "  ISSUE TEXT UNAVAILABLE: the linked issue could not be fetched. Say so in SUMMARY and report no acceptance criterion as covered." > "$REVIEW_DIR/issue.md"
+# Settled decisions and the previous round's outcome (round 2+); round 1: none.
+sed -n '/^## Decisions/,$p' <settled path> | sed 's/^/  /' > "$REVIEW_DIR/settled.md"   # round 1: echo "  none" > ...
 rm -f "$REVIEW_OUT"
 # Resolve the wrapper path. $CLAUDE_PROJECT_DIR is NOT always set in a subagent
 # shell — when unset the path became `/.claude/hooks/codex-safe.sh` and the call
@@ -80,8 +90,13 @@ CODEX_SAFE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hook
   "Review this implementation plan for the {{PROJECT}} codebase. Check for:
 {{REVIEW_CHECKLIST}}
 
+Severity: [critical] security flaw, data loss, or a broken guarantee; [high] significant correctness bug or missing acceptance criterion; [major] a real gap or unhandled edge case that needs a small patch; [minor] polish, naming, wording. Tag a finding about behavior the issue's acceptance criteria don't require as [out-of-scope] after its severity. Review bar: {{REVIEW_BAR}} Tag a finding that only matters beyond that bar as [below-bar] after its severity. If two of your findings are variants of one problem, say so in SUMMARY. Items in SETTLED are not findings unless critical. If SETTLED lists a previous round: first confirm each of its findings is addressed in the plan; reopen what an earlier round passed only for critical or high findings. MATERIAL_FINDINGS is true only if an in-scope finding that is not [below-bar] is [critical] or [high].
+
 LINKED ISSUE:
 $(cat "$REVIEW_DIR/issue.md")
+
+SETTLED (decisions, and findings already fixed or declined):
+$(cat "$REVIEW_DIR/settled.md")
 
 PLAN CONTENT:
 $(cat "<plan file path>")
@@ -227,7 +242,8 @@ Severity rubric (same as the external path):
   the plan over- or under-specifies in a way that produces wrong code
 - `[minor]` — documentation accuracy, naming, polish
 
-`MATERIAL_FINDINGS: true` if any finding is `[critical]/[high]/[major]`.
+`MATERIAL_FINDINGS: true` if any in-scope finding is `[critical]/[high]`
+(see Rules → Scope and materiality).
 
 Cap FINDINGS at ~10 items; prioritize by severity and group similar items. Aim
 for under 800 words.
@@ -270,12 +286,27 @@ single file by path — do not enumerate the directory.
 
 ## Rules
 
-- Pass findings through faithfully. Never silently drop anything labeled
-  `[critical]/[high]/[major]`, regardless of which path produced it.
-- Set `MATERIAL_FINDINGS: true` whenever at least one finding is
-  `[critical]/[high]/[major]`.
-- `[minor]/[nit]/style` findings may appear but never trigger
-  `MATERIAL_FINDINGS: true` on their own.
+- **Scope and materiality.** Judge against the linked issue's acceptance
+  criteria. A finding about behavior those criteria don't require gets
+  `[out-of-scope]` after its severity (e.g. `[major] [out-of-scope] …`) and is
+  never material; the caller files a follow-up only when it is likely in
+  normal use. `MATERIAL_FINDINGS: true` only when at least one **in-scope**
+  finding is `[critical]` or `[high]`. `[major]` and `[minor]` findings are
+  reported and triaged by the caller (fix, accept or defer), but don't keep the
+  loop going.
+- **Review bar.** Judge every finding against the review bar in the prompt. A
+  finding that only matters beyond it (a threat or failure the bar excludes)
+  gets `[below-bar]` after its severity and is never material. When two
+  findings are variants of one problem (another spelling or input of the same
+  kind), say so in SUMMARY: the check may be trying to list an open-ended set.
+- **Settled items are not findings.** A decision recorded in the settled list,
+  or a finding an earlier round declined with a reason, is not raised again
+  unless it is `[critical]`.
+- **Later rounds verify first.** With a previous round, first confirm each of
+  its findings is addressed; reopen parts of the plan an earlier round passed
+  only for `[critical]`/`[high]`.
+- Pass findings through faithfully. Never silently drop a finding, whatever
+  its severity or tag, and never relabel one.
 - Preserve severity labels verbatim — do not relabel `[high]` as `[minor]`
   because it "feels" minor.
 - When falling back, **do the review yourself**; do NOT just report

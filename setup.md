@@ -118,7 +118,7 @@ if webapp/dev/active/issue-{number}/ exists:
 **Step 6: Implement with Plan Review**
 - Implement each phase
 - After planning, run automated plan review loop (see Section 8)
-- Review continues until `MATERIAL_FINDINGS: false` or max 10 rounds
+- Review continues until `MATERIAL_FINDINGS: false` (an in-scope `[critical]`/`[high]` finding) or max 3 rounds; `[major]`/`[minor]` findings are triaged fix, accept or defer (see review-loops.md §2)
 - Track review rounds in context.md
 
 **Step 7: Test and Code Review**

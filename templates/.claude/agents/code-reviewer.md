@@ -14,6 +14,11 @@ TEMPLATE. Replace before use:
   {{IGNORE_PATHS}}     generated/vendored paths (Scope hygiene)
   {{REVIEWER_MODEL}}   external reviewer model id
   {{GH_REPO}}          owner/repo for gh commands
+  {{REVIEW_BAR}}       what the code must hold up against, one or two sentences
+                       (who uses it, what failures count), e.g. "authenticated
+                       tenants of a shared SaaS; crashes, retries and races
+                       between our own jobs; not a compromised host". No
+                       double quotes or $: it sits inside the quoted prompt.
 Keep everything else. Every warning below records a specific production
 failure; trimming one puts it back. See review-loops.md.
 -->
@@ -39,6 +44,13 @@ way.
 - `base <branch>` — review changes against a base branch (preferred — matches the PR diff)
 - `uncommitted` — review staged, unstaged, and untracked changes (only when explicitly requested)
 - `pr <url>` — review a created GitHub PR (post-PR pass)
+
+From round 2 of a loop the caller adds two lines:
+
+- `prev: <sha>`: the commit the previous round reviewed.
+- `settled: <path>`: the issue's `context.md`. Its `## Decisions`, its
+  previous-round list (each finding → fixed in `<sha>` | declined: reason) and
+  `### Review findings accepted as-is` are settled.
 
 ## Workflow
 
@@ -92,6 +104,11 @@ gh issue view <N> --repo {{GH_REPO}} | sed 's/^/  /' > "$REVIEW_DIR/issue.md"
 # Fail loud: with no issue text, story verification must say it couldn't run,
 # never report the criteria as met.
 [ -s "$REVIEW_DIR/issue.md" ] || printf '%s\n' "  ISSUE TEXT UNAVAILABLE: the linked issue could not be fetched. Say so in SUMMARY and report no acceptance criterion as verified." > "$REVIEW_DIR/issue.md"
+# Round 2+ only (the caller passed prev: and settled:). Round 1: both say none.
+# Later rounds that re-reviewed everything kept reopening code an earlier round
+# had passed, and missed bugs the last fix introduced; the delta fixes both.
+git diff <prev>..HEAD > "$REVIEW_DIR/delta.diff"          # round 1: echo "  none" > ...
+sed -n '/^## Decisions/,$p' <settled path> | sed 's/^/  /' > "$REVIEW_DIR/settled.md"   # round 1: echo "  none" > ...
 # 2. MANDATORY: clear the output file first, and read the REAL exit code.
 rm -f "$REVIEW_DIR/output.md"
 # $CLAUDE_PROJECT_DIR is NOT always set in a subagent shell — when unset the
@@ -103,8 +120,16 @@ CODEX_SAFE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hook
   -c model_reasoning_effort=high \
   -s read-only \
   -o "$REVIEW_DIR/output.md" \
-  "Review the following diff (changes on this branch vs $BASE; changed files listed in "$REVIEW_DIR/files.txt"). Apply the {{PROJECT}} review rubric, including User Story Verification against the linked issue (inlined below). Linked issue:
+  "Review the following diff (changes on this branch vs $BASE; changed files listed in "$REVIEW_DIR/files.txt"). Apply the {{PROJECT}} review rubric, including User Story Verification against the linked issue (inlined below). Severity: [critical] security flaw, data loss, or a broken guarantee; [high] significant correctness bug or missing acceptance criterion; [major] a real gap or unhandled edge case that needs a small patch; [minor] polish, naming, wording. Tag a finding about behavior the issue's acceptance criteria don't require as [out-of-scope] after its severity. Review bar: {{REVIEW_BAR}} Tag a finding that only matters beyond that bar as [below-bar] after its severity. If two of your findings are variants of one problem, say so in SUMMARY. Items in SETTLED are not findings unless critical. If CHANGES SINCE THE LAST ROUND is not 'none': first confirm each finding of the previous round (listed in SETTLED) is fixed, then review those changes closely, including fixes that break a sibling case; on code outside them, report only critical or high findings. MATERIAL_FINDINGS is true only if an in-scope finding that is not [below-bar] is [critical] or [high].
+
+Linked issue:
 $(cat "$REVIEW_DIR/issue.md")
+
+SETTLED (decisions, and findings already fixed or declined):
+$(cat "$REVIEW_DIR/settled.md")
+
+CHANGES SINCE THE LAST ROUND ('none' on round 1):
+$(cat "$REVIEW_DIR/delta.diff")
 
 Diff:
 $(cat "$REVIEW_DIR/base.diff")" 2>&1 | tee "$REVIEW_DIR/stderr.log"; echo "EXIT=${PIPESTATUS[0]:-$pipestatus[1]}"
@@ -293,7 +318,8 @@ Severity rubric:
 - `[major]` — non-trivial design gap or unhandled edge case
 - `[minor]` — documentation accuracy, naming, polish
 
-`MATERIAL_FINDINGS: true` if any finding is `[critical]/[high]/[major]`.
+`MATERIAL_FINDINGS: true` if any in-scope finding is `[critical]/[high]`
+(see Rules → Scope and materiality).
 
 Cap FINDINGS at ~10 items; prioritize by severity. Aim for under 800 words.
 
@@ -325,9 +351,28 @@ evidence; never crawl trees."
 
 ## Rules
 
-- Pass findings through faithfully. Never silently drop anything labeled
-  `[critical]/[high]/[major]`.
-- `[minor]/[nit]/style` findings never trigger `MATERIAL_FINDINGS: true` alone.
+- **Scope and materiality.** Judge against the linked issue's acceptance
+  criteria. A finding about behavior those criteria don't require gets
+  `[out-of-scope]` after its severity (e.g. `[major] [out-of-scope] …`) and is
+  never material; the caller files a follow-up only when it is likely in
+  normal use. `MATERIAL_FINDINGS: true` only when at least one **in-scope**
+  finding is `[critical]` or `[high]`. `[major]` and `[minor]` findings are
+  reported and triaged by the caller (fix, accept or defer), but don't keep the
+  loop going.
+- **Review bar.** Judge every finding against the review bar in the prompt. A
+  finding that only matters beyond it (a threat or failure the bar excludes)
+  gets `[below-bar]` after its severity and is never material. When two
+  findings are variants of one problem (another spelling or input of the same
+  kind), say so in SUMMARY: the check may be trying to list an open-ended set.
+- **Settled items are not findings.** A decision recorded in the settled list,
+  or a finding an earlier round declined with a reason, is not raised again
+  unless it is `[critical]`.
+- **Later rounds verify, then review the delta.** With a previous round, first
+  confirm each of its findings is fixed, then review the changes since that
+  round closely, including fixes that break a sibling case. Code an earlier
+  round passed is reopened only for `[critical]`/`[high]`.
+- Pass findings through faithfully. Never silently drop a finding, whatever
+  its severity or tag, and never relabel one.
 - Preserve severity labels verbatim — do not relabel `[high]` as `[minor]`
   because it "feels" minor.
 - When falling back, **do the review yourself**; do NOT report "unavailable"

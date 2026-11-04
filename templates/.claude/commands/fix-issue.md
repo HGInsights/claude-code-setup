@@ -13,6 +13,7 @@ TEMPLATE. Replace before use:
   {{REQUIRED_CHECKS}}  names of required CI checks
   {{GUIDELINES}}       repo convention docs to reference during implementation
   {{GH_REPO}}          owner/repo for gh commands
+  {{REVIEW_BAR}}       the review bar, as filled in the reviewer agents
 Drop steps that don't apply (a repo with no preview envs drops the smoke
 step). Keep Step 0b — compaction recovery is generic and load-bearing.
 -->
@@ -246,7 +247,8 @@ what Step 0's resume detection reads.
 ### Step 6: Automated plan review
 
 1. **Spawn the `plan-reviewer` subagent**, passing the plan file path as the
-   prompt.
+   prompt. From round 2, add `settled: <absolute path to context.md>`, after
+   writing the previous round's list there (below).
 2. **Parse the response** for the plain-text markers:
 
    ```
@@ -258,18 +260,73 @@ what Step 0's resume detection reads.
    SUMMARY: assessment
    ```
 
-3. **If `MATERIAL_FINDINGS: true`** — update the plan, re-run the review.
-   **Circuit breaker:** stop after 10 rounds. **Convergence:** stop at
-   `MATERIAL_FINDINGS: false`.
+3. **Triage every finding before changing anything.** Only in-scope
+   `[critical]` and `[high]` findings block (that is what
+   `MATERIAL_FINDINGS: true` means). For each `[major]` and `[minor]`, decide
+   **fix**, **accept** or **defer**, and record the decision with a one-line
+   reason under the round in `context.md`. Judge every finding against the
+   review bar (the reviewers' `{{REVIEW_BAR}}`):
+   - `[below-bar]` (it only matters beyond the bar) is accepted, with the
+     reason "below the review bar: <which part>". It never gets a follow-up
+     issue. If the reviewer didn't tag a finding that is below the bar, accept
+     it the same way and say so.
+   - `[out-of-scope]` (within the bar, but the issue's acceptance criteria
+     don't require it) is never fixed in this branch. File a follow-up issue
+     only when it is likely in normal use; otherwise accept it with its
+     reason. Follow-up issues are the exception, not the default way to close
+     a finding.
+
+   **Fix with the smallest change that closes the finding, and push back when
+   the reviewer is wrong.** A fix goes to every site with the same pattern and
+   comes with a test that fails without it; it doesn't redesign the
+   surrounding code. A finding that misreads the code, re-raises a settled
+   decision or asks for work outside the issue is declined, with the reason
+   recorded. Declining is a normal outcome, not a failure to converge.
+
+   **Same class twice: stop patching.** When a blocking finding is a variant
+   of one fixed in an earlier round (another spelling, another input of the
+   same kind, another path around the same check), the check is trying to
+   list an open-ended set and won't converge. Don't fix the new variant. Ask
+   an `[architecture]` question (`operator-questions.md`), with the second
+   reviewer's position, offering to narrow the feature so it doesn't need the
+   check, or to accept the remaining risk. Record the answer in
+   `## Decisions`.
+
+   **Prefer running something to another round.** When a finding can be
+   settled by a live run or a failure-injection test, run it instead of
+   starting another review round.
+
+   > **Why.** Fixing every finding until the reviewer came back clean didn't
+   > converge: one loop ran 10 plan rounds and 5 code rounds, and about six of
+   > its findings were real bugs; most of the rest were edge cases in
+   > machinery added to answer earlier findings, each fix creating the next
+   > round's findings. Another spent five rounds finding one more way for a
+   > shell to spell `rm`, and still documented gaps it couldn't close. Without
+   > a stated bar the reviewer applies the strictest one, and each pass finds
+   > the next layer down. The real bugs were found by live runs and
+   > failure-injection tests as often as by review rounds.
+
+   Then, if anything blocking was fixed, write the previous round's list into
+   `context.md` (each finding → fixed in `<sha>` | declined: reason |
+   accepted: reason | deferred: reason) and re-run the review with
+   `settled:`. A decision the revision introduces is routed like any other
+   (`operator-questions.md` → Routing). **Circuit breaker:** stop after 3
+   rounds; list any blocking finding still open in the plan-approval
+   question. **Convergence:** stop at `MATERIAL_FINDINGS: false`.
 4. **Update `context.md` after each round** so a crashed session resumes at the
    right round count:
 
    ```
    ## Plan Review
-   Round: N/10
+   Round: N/3
    Last result: MATERIAL_FINDINGS true|false — [one line summary]
    Reviewers: [r1 external (N files), r2 in-model (N files), ...]
+   Triage: [finding → fix | accept | defer — reason, ...]
    ```
+
+   **Keep one reviewer for every round of a loop.** If round 1 fell back to
+   in-model, later rounds of that loop do too: swapping reviewers mid-loop
+   reopens what the first one already passed.
 
    **If a loop converges with every round on the in-model fallback, say so
    explicitly in your handoff** — it means the external reviewer never ran and
@@ -297,8 +354,13 @@ The subagent materializes the diff itself and feeds the bytes to the reviewer.
 Do not prescribe a raw reviewer invocation here; see
 `.claude/agents/code-reviewer.md` for the mechanics.
 
-Same parse, same circuit breaker, same `context.md` bookkeeping as Step 6 under
-a `## Code Review` heading, plus the commit each round reviewed:
+Same parse, triage, circuit breaker (3 rounds) and `context.md` bookkeeping as
+Step 6, under a `## Code Review` heading. From round 2, the scope line is
+followed by `prev: <the commit the last round reviewed>` and
+`settled: <absolute path to context.md>`: the reviewer checks the previous
+findings first, reviews the changes since that round closely, and reopens
+code an earlier round passed only for `[critical]`/`[high]`. Record the commit
+each round reviewed:
 
 ```text
 Reviewed head: <git rev-parse HEAD when the round ran>
@@ -320,7 +382,8 @@ last read it.
 
 ### Step 11: Post-PR review
 
-Spawn `code-reviewer` with scope `pr <url>`. Same loop, recorded under
+Spawn `code-reviewer` with scope `pr <url>`. Same loop, triage and 3-round
+breaker, recorded under
 `## Post-PR Review`, with the head each round reviewed.
 
 **Skip it when nothing changed since the last code review.** If the pushed PR
