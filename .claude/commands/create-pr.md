@@ -3,8 +3,10 @@ Create a pull request for the current branch.
 Steps:
 
 1. Read `.github/pull_request_template.md` if it exists.
-2. Run `git log master..HEAD --oneline` to get commit history.
-3. Run `git diff master..HEAD --stat` to get the changed files summary.
+2. Run `git fetch origin master`, then `git log origin/master..HEAD --oneline`
+   to get commit history. Always compare against `origin/master`: a local
+   `master` in a worktree is often stale.
+3. Run `git diff origin/master...HEAD --stat` to get the changed files summary.
 4. Fill in each section of the PR template using the git context.
 5. Create the PR with `gh pr create --title "..." --body "..."`.
 
@@ -24,7 +26,7 @@ write are all free of:
 - internal incident or ticket references
 
 ```bash
-git diff master..HEAD | grep -nEi '<private-repo-name>|<internal-domain>|arn:aws|[0-9]{12}'
+git diff origin/master...HEAD | grep -nEi '<private-repo-name>|<internal-domain>|arn:aws|[0-9]{12}'
 ```
 
 Check the PR body separately — it is not part of the diff, and it is the easiest
